@@ -1,0 +1,28 @@
+/* Royal treatment over the Desktop menu and deck builder. */
+:root { --azure: #2689ed; --gold: #ffd453; --violet: #dd60ef; --hud-max: 620px; }
+.scr-menu { background: radial-gradient(ellipse at 50% 38%, transparent 22%, #071a3860 67%, #071329e8 100%); }
+.logo { position: relative; z-index: 1; }
+.logo__emblem { filter: drop-shadow(0 5px 0 #382413) drop-shadow(0 0 24px #ffd66c55); }
+.logo__l1 { background-image: linear-gradient(#fff5bf, #ffd65e 55%, #d08b22); }
+.logo__l2 { background-image: linear-gradient(#fff, #c9e8ff 50%, #62a9e9); }
+.logo__tag { letter-spacing: .18em; color: #f9db8d; }
+.royal-hero { position: absolute; pointer-events: none; bottom: 12%; width: min(31vw, 430px); height: 65%; object-fit: contain; filter: drop-shadow(0 20px 15px #020b2455); }
+.royal-hero--left { left: -3%; transform: rotate(-7deg); }
+.royal-hero--right { right: -3%; transform: rotate(7deg); }
+.menu-bottom { z-index: 2; padding: 14px 18px; border-radius: 20px; background: linear-gradient(#163c68ed, #0d2446f5); border: 1px solid #8ba7c859; box-shadow: 0 12px 40px #030e2d88, inset 0 1px #a7d7ff33; }
+.deck-peek { background: #0a1c35b0; }
+.card__cost { background: linear-gradient(145deg, #f7b4ff, #dc4ee9 48%, #8e229d); box-shadow: inset 0 2px 1px #fff9, 0 2px 0 #561966, 0 0 0 2px #41134d; }
+.card__cost span { background: linear-gradient(140deg, #f8c3ff, #db59e9 45%, #9826bd); }
+.chip--aether .chip__icon { color: #eb75f6; }
+.card__img { object-fit: cover; }
+.card[data-card="warden"] .card__img, .card[data-card="scouts"] .card__img,
+.card[data-card="colossus"] .card__img, .card[data-card="longshot"] .card__img,
+.card[data-card="breaker"] .card__img, .card[data-card="mites"] .card__img,
+.card[data-card="comet"] .card__img, .card[data-card="shardstorm"] .card__img { object-fit: cover; }
+.aether__fill, .aether.is-full .aether__fill { background: linear-gradient(#f5a7ff, #d54ee9 40%, #aa2cc3 70%, #eb70f4); }
+.aether__gem-icon, .aether.is-full .aether__gem-icon, .mini-gem { color: #ec7df7; }
+.hud-top { background: linear-gradient(#0c203bed, #0c203b90, transparent); }
+.fan-notice { color: #98b0cf; text-align: center; font-size: 10px; line-height: 1.5; padding: 12px; }
+.fan-notice a { color: #c1d8ed; }
+@media (max-width: 800px) { .royal-hero { display: none; } .menu-bottom { padding: 10px; } }
+@media (max-height: 650px) { .logo__emblem { display: none; } .logo__tag { margin-top: 2px; } .menu-bottom { padding: 8px 10px; } }

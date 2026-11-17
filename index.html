@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Crown Clash</title>
+  <meta name="description" content="Crown Clash — a royal arena card battler with 3D troops. Plays entirely in your browser.">
+  <meta name="theme-color" content="#0b1230">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 3 52 26 32 61 12 26Z' fill='%232f8fff'/%3E%3Cpath d='M32 3 52 26 32 34Z' fill='%239fd6ff'/%3E%3Cpath d='M32 34 52 26 32 61Z' fill='%23163f86'/%3E%3C/svg%3E">
+  <style>
+    /* Critical layout + boot splash. Everything else lives in css/style.css. */
+    html, body { margin: 0; height: 100%; background: #0b1230; overflow: hidden; overscroll-behavior: none;
+      -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+    #app { position: fixed; inset: 0; overflow: hidden; overflow: clip; }
+    #ui-root { overflow: hidden; overflow: clip; }
+    #game-canvas, #overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #overlay-canvas { pointer-events: none; }
+    #ui-root { position: absolute; inset: 0; pointer-events: none; }
+    #boot { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 22px; color: #cfe6ff; font: 700 15px/1.4 "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+      letter-spacing: .08em; background: radial-gradient(120% 90% at 50% 35%, #1c2f6b 0%, #0b1230 62%, #060914 100%);
+      transition: opacity .5s ease; }
+    #boot.hide { opacity: 0; pointer-events: none; }
+    #boot .gem { width: 54px; height: 54px; transform: rotate(45deg); border-radius: 9px;
+      background: linear-gradient(135deg, #b8ecff 0%, #3aa2ff 48%, #1a3f9a 100%);
+      box-shadow: 0 0 34px #3aa2ffaa, inset 0 0 14px #ffffff66; animation: boot-pulse 1.3s ease-in-out infinite; }
+    #boot .name { font-size: 26px; font-weight: 900; letter-spacing: .22em; color: #fff; text-shadow: 0 2px 0 #12306e, 0 0 22px #3aa2ff88; }
+    #boot-msg { opacity: .8; text-transform: uppercase; font-size: 12px; max-width: 80vw; text-align: center; }
+    @keyframes boot-pulse { 0%, 100% { transform: rotate(45deg) scale(.92); } 50% { transform: rotate(45deg) scale(1.06); } }
+  </style>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/royale.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js" crossorigin>
+</head>
+<body>
+  <div id="app">
+    <canvas id="game-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+    <div id="ui-root"></div>
+    <div id="boot">
+      <div class="gem"></div>
+      <div class="name">CROWN CLASH</div>
+      <div id="boot-msg">Preparing the Royal Arena…</div>
+    </div>
+  </div>
+  <noscript>Crown Clash needs JavaScript and WebGL to run.</noscript>
+  <script>
+    // Surface boot failures on the splash instead of a silent blank page.
+    window.__bootError = function (msg) {
+      var el = document.getElementById('boot-msg');
+      var boot = document.getElementById('boot');
+      if (el && boot && !boot.classList.contains('hide')) { el.textContent = msg; el.style.color = '#ffb0a0'; }
+    };
+    window.addEventListener('error', function (e) { window.__bootError('Could not start: ' + (e.message || 'script error')); });
+    window.addEventListener('unhandledrejection', function (e) {
+      window.__bootError('Could not start: ' + ((e.reason && e.reason.message) || e.reason || 'error'));
+    });
+  </script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

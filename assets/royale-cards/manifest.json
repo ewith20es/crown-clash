@@ -1,0 +1,456 @@
+{
+  "retrieved": "2026-11-16",
+  "repository": "https://github.com/RoyaleAPI/cr-api-assets",
+  "portraits": [
+    {
+      "slug": "archers",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/archers.png",
+      "gitBlob": "066ccca2bce7ec2ec52a406bdcde8207564d75d4",
+      "sha256": "7427cdce681c78eb61fc97c849a4ff6e8bc1739e1a46b56da9d62d8ee610ef85",
+      "bytes": 150985,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "arrows",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/arrows.png",
+      "gitBlob": "545986db18a67c055e48a8dc498e73f2b4535eb9",
+      "sha256": "3edcaaafe1d1955ad274896bb15efb85172bb8d44aea79083239b813bebddd99",
+      "bytes": 127040,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "baby-dragon",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/baby-dragon.png",
+      "gitBlob": "020ac315de05a12873144de616611c8f6e34083e",
+      "sha256": "eda98b83fee22aa1e2da87fa8c407221d1a83f44b75941e45bd97564b7ae22b2",
+      "bytes": 129546,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "balloon",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/balloon.png",
+      "gitBlob": "0b61439274f53bcea76b03455c855af7557eb4f7",
+      "sha256": "81cedea30710838650fbc2dab748ffc6709707cdae2081c4831b255f0e33d96c",
+      "bytes": 145863,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "bandit",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/bandit.png",
+      "gitBlob": "2831a0a91f3c86cee5d583058bc1b3060285a30d",
+      "sha256": "c1695a9ef6889e932d0961308d79d1a2a33526cdf5198c212f7e1b84a38a9eed",
+      "bytes": 120732,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "barbarians",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/barbarians.png",
+      "gitBlob": "37ed871aa22807f462d8500c683869aba3f71bf9",
+      "sha256": "46198a754608d8086ec40aa01638da639257194c336adca0247b67f02e30d785",
+      "bytes": 114510,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "bats",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/bats.png",
+      "gitBlob": "cb5ef76be5caf24122d0b7f67ba8b1d419312d65",
+      "sha256": "f22cf5787dbb8cd32f3e4015766b64733f86ccedc5cb5be709b3ee06df400850",
+      "bytes": 126952,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "battle-healer",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/battle-healer.png",
+      "gitBlob": "1c4fd6325b3fae69d1345310ca0838ee2a60e01f",
+      "sha256": "ec79db0ae4ebfa1dada2d68ba74fb048d4eae49cb594e3fcbfd62b7417adac83",
+      "bytes": 128601,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "bomber",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/bomber.png",
+      "gitBlob": "5cae9ea46b6a6d09f4382a4909016d9f6006682a",
+      "sha256": "aee0f0da304a067388f1203a931b8bc42e50cac923c1fa9b3eb7dfa4e78de9b0",
+      "bytes": 139334,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "electro-dragon",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/electro-dragon.png",
+      "gitBlob": "69259864a06fa6774f4f1b93f8fe3459017f7734",
+      "sha256": "b11234e409c5167fe9dd3df71699bfb19b7405b51328b9f22340a9dae80d335f",
+      "bytes": 123743,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "electro-spirit",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/electro-spirit.png",
+      "gitBlob": "33a2ac3f84a8edb6f627efd51f545ccb69596899",
+      "sha256": "b3ad3838e1889fa60b4c94558834765de8b3b3fb5e26d86cda51827c6dd1d2c3",
+      "bytes": 104647,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "elite-barbarians",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/elite-barbarians.png",
+      "gitBlob": "2754e0ab91dbb1c6209c44d09d3857224168fa8c",
+      "sha256": "8ea6b12aa61a277f5bba5c5b4ff2f1580bf181ffac74af58fa14bb2e03b955ca",
+      "bytes": 131965,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "elixir-collector",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/elixir-collector.png",
+      "gitBlob": "1024fc6b0ac55c8412b430a2b275ee5bd81700c4",
+      "sha256": "e2f12455481b6742b488c92a12cf2021e2ef34c1c437331942252ae2dbe9b59a",
+      "bytes": 129117,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "executioner",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/executioner.png",
+      "gitBlob": "5f3dac3f90313ab77606674dfd602878753154a4",
+      "sha256": "ed03e02c470b63564f52aaafab99ac17eddf01ad55257815573ed7a05ad20082",
+      "bytes": 124677,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "fireball",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/fireball.png",
+      "gitBlob": "30e8d901112d124934dcd5fd4c16ca7ac16f6c45",
+      "sha256": "6bbe17a15330f6c0b9020f149023f728a97bffbd8a373d18a69ee09784ac571a",
+      "bytes": 123797,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "freeze",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/freeze.png",
+      "gitBlob": "2cb128c97080706989251e5c7ae022f1a6165704",
+      "sha256": "bcbccf3289dc362eaa9e553b886d59e2255c82d62abcfe8c2f8d83560b2ec58d",
+      "bytes": 136477,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "giant",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/giant.png",
+      "gitBlob": "c49e49bcc5d522cd6fcae1634da9f8c569612c89",
+      "sha256": "390277aa877d9b952d0b2c8843ee080b1fd5a40eb68acf8760ad18f106985367",
+      "bytes": 136801,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "giant-skeleton",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/giant-skeleton.png",
+      "gitBlob": "8066df4b7dd68720b7abd6c485a79716f26113de",
+      "sha256": "70d69153dd8485a6a508e8d3a8753c57ec17a969530f9808d09cf0931c307af1",
+      "bytes": 157539,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "goblin-barrel",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/goblin-barrel.png",
+      "gitBlob": "3221ebae31b1b2b9e8a23aa1b188b1238444c9eb",
+      "sha256": "6d34267ad6f5d42a8e88f840e36d6a11e25f16f3d111c716bee2e31b03330c4c",
+      "bytes": 135753,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "goblin-hut",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/goblin-hut.png",
+      "gitBlob": "5134b3e5178b2e6c4546fe5ad6c1f10cda050b28",
+      "sha256": "ae097ff5e26e203b67e0df0c9fc6f91e355d38feb8d45022cfc371411c0cd7dc",
+      "bytes": 151797,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "goblins",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/goblins.png",
+      "gitBlob": "86e6da5eb216cd33d1f975549aa9170f6dbbb824",
+      "sha256": "c0bb707e824b63babb8890925ad889d50838e8c94dcaf567f3e8061bb2404f40",
+      "bytes": 126701,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "golem",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/golem.png",
+      "gitBlob": "46eb7669a470ff2d2caf929c7d533e5b3d2f1997",
+      "sha256": "3104284ac5620aa3fe11da23bf7b6676a138b7fba356a3a6ca4000c1542ef699",
+      "bytes": 118431,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "guards",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/guards.png",
+      "gitBlob": "0a4f4583e58b0c698f21f7039dc38428382d5b8b",
+      "sha256": "bfc68221b68ab264d95ac45961d5ea6d59324692b78f19e6740cb55f7a8bd9a9",
+      "bytes": 125912,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "hog-rider",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/hog-rider.png",
+      "gitBlob": "a624476c0eaa52e42b3d4dd87f62564c7795c280",
+      "sha256": "b34fb968d5843729c24cca9b65271345092a2e2ddde5647381d7186446a9b928",
+      "bytes": 131428,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "ice-wizard",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/ice-wizard.png",
+      "gitBlob": "639cf624a91cbec66762e87a3b5d4b505793da9e",
+      "sha256": "2b4701fc766c9cf3f33e469638e7d00eb96daceec605b35739fff201c9b2bb2f",
+      "bytes": 123132,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "inferno-dragon",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/inferno-dragon.png",
+      "gitBlob": "d2972ff88bb3beca0669fb751e17f1d34c2a7c25",
+      "sha256": "09b3d010aaba0c5aa3d8d4df30b9c29d2dd51007c8702fb435133b57cc44e793",
+      "bytes": 129397,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "knight",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/knight.png",
+      "gitBlob": "05517a1dc80ec626b81f83cf59a307483d93e5a0",
+      "sha256": "bc85a17a817c5e29d0e12adc854499670b648e710985a8d05dea9ccfcaa95abe",
+      "bytes": 153676,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "lightning",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/lightning.png",
+      "gitBlob": "6248219c7aafabe310c2e22ec98edfa2bc997c57",
+      "sha256": "47c994fc25232801eed483458395ad9d73d2aa692d736d8fcc7a119ae61f4587",
+      "bytes": 142331,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "mega-knight",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/mega-knight.png",
+      "gitBlob": "f7032e23d5569ed6c5e3aaa3e19413588f41efad",
+      "sha256": "53e65d46cf12c77ddbd7cb66002a79906477c2fe3a61ac264dad6bf279f1e7ce",
+      "bytes": 114074,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "mega-minion",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/mega-minion.png",
+      "gitBlob": "8770ab15cb60a9d2607d04fd3535ed999b932189",
+      "sha256": "d30ab6393f56450d9801639e0595b6da5ea9cb37924bc42b68344c48eb660430",
+      "bytes": 158495,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "miner",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/miner.png",
+      "gitBlob": "3c354b763667b6fef7235c21254e91e97d1c7072",
+      "sha256": "de39cd5d5bad2a83f0c8bbc403cf205ae10cf0f282101b760287b0bcb99a2305",
+      "bytes": 121119,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "mini-pekka",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/mini-pekka.png",
+      "gitBlob": "272a9efcefc4239705a7940957c96e48d494bc7d",
+      "sha256": "dcf726551fb3c83db8bc304bdeaff48e1f7553127567b5669573674b81204a1f",
+      "bytes": 145092,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "minion-horde",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/minion-horde.png",
+      "gitBlob": "a20bfefa53d2715a204f8ed13337ee2973f1e7f4",
+      "sha256": "b02861160a1aa9ffbc474304098a86f486da71734eb9d258e0a08ad300503fce",
+      "bytes": 142074,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "minions",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/minions.png",
+      "gitBlob": "977228a426acc3bbc74bbb85b7992000ea2502c6",
+      "sha256": "aa00d7b23fd564665c76aee4f03f508d0ce727f3c39cee306a98fa657e97f1f5",
+      "bytes": 133625,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "mortar",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/mortar.png",
+      "gitBlob": "83de7a79a4d3dc4f65fa8096196178edafc47a17",
+      "sha256": "ae586599383e1459a025ca6a465513d7ab6124a7d643b38c091f8d6b1e15fb70",
+      "bytes": 150505,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "musketeer",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/musketeer.png",
+      "gitBlob": "05c105638eaf415ef87ca5576a1cb0a9ff8db823",
+      "sha256": "db28ed3c9eec23740bba7ae86cda7226479291c147f7453ccb3009f87e5d754b",
+      "bytes": 138281,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "poison",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/poison.png",
+      "gitBlob": "0885cb053e40f5c51e1d6f45abd10deb52cb8065",
+      "sha256": "4f28bc86f2b1a236bc02e7abace6e4904c1a51773cc666eaa10618e450a91d35",
+      "bytes": 119225,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "prince",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/prince.png",
+      "gitBlob": "36adc98b7ffe8c3b374ad886d82ca26003712c69",
+      "sha256": "0b35ecc5f4821656f8066cc8d6ea2f65fc8985b536c056ed0d63225676cdfa0a",
+      "bytes": 146529,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "rage",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/rage.png",
+      "gitBlob": "0ab8aef57d77dc063b6405f5b094bc377b7fb309",
+      "sha256": "bfa631dd55d66fa19c585279ecc07ead74f0db65c1aa19566b98254a43f3880a",
+      "bytes": 116774,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "royal-giant",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/royal-giant.png",
+      "gitBlob": "98ed795d7d7fc06aab905f719be59be9137ceea8",
+      "sha256": "e44b5250b97ffd4dd85c33fdc0d89a7d5bf737a667ef26a14851a65abdf08be0",
+      "bytes": 131404,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "skeleton-army",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/skeleton-army.png",
+      "gitBlob": "56933e5249ed8843a5f8499c59d29b862b8b8c08",
+      "sha256": "4fe348d2115ffa1d08d3e418863b9013c928f3e5e9e60b98f431dd3c48f9fd18",
+      "bytes": 132165,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "skeletons",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/skeletons.png",
+      "gitBlob": "096eef4af2d84509073f012ed2bba5f4ec146397",
+      "sha256": "577c897f22f0270ed7f7297f9f8e52c72557b43e673e7ea2368e00309bdece6b",
+      "bytes": 123669,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "spear-goblins",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/spear-goblins.png",
+      "gitBlob": "d73d1d4cab671dc626adf92c45013f48314c4555",
+      "sha256": "f73d718dcc1fad6cc5696a9ef532cdb07154e503f891d01ca549f40435b49eb2",
+      "bytes": 147457,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "tesla",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/tesla.png",
+      "gitBlob": "efd25d567354449a048d7eee5d1cd38a698b144e",
+      "sha256": "4dce8e5c833db04903b51b6495e774914ed3c7a8b0e26c14c1378bf6a18f5590",
+      "bytes": 128746,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "the-log",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/the-log.png",
+      "gitBlob": "bc0e957ad48b857cd91190b90cd26b6fa04feecc",
+      "sha256": "2d9202b67ebd1ae3fd9d0d343b0809c63922f81b3a2afc45d7ef058ae5a1400a",
+      "bytes": 130249,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "tornado",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/tornado.png",
+      "gitBlob": "fc59c2e333ead527b62c618d5572f8bd2c9c0abd",
+      "sha256": "1d7c4187b27b44fe16f4cb4664c128e02553961665d701b9c1295d5040c5f26d",
+      "bytes": 130257,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "valkyrie",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/valkyrie.png",
+      "gitBlob": "f6f07267c8302230a80210289771070ae97e6b1e",
+      "sha256": "ed98ea746360fdca51628b5ce3e16ad40f15ba296478409a52e8c6ba0aed682e",
+      "bytes": 148663,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "witch",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/witch.png",
+      "gitBlob": "c4e6924ac4c9ce06fc44d92041f5ccef1cfdb125",
+      "sha256": "37287bf62936eae84fd5d898110381af59e033841a707b91d33bb4ebe995d8af",
+      "bytes": 149912,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "wizard",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/wizard.png",
+      "gitBlob": "0223f1e39daad2e413cdceba54fd8b659c8881cf",
+      "sha256": "12254947e7486740288b315062fdb1c415ffd2482d8b00fd6ac4dd65cfc0561a",
+      "bytes": 128594,
+      "width": 302,
+      "height": 363
+    },
+    {
+      "slug": "zap",
+      "source": "https://raw.githubusercontent.com/RoyaleAPI/cr-api-assets/master/cards/zap.png",
+      "gitBlob": "ab4c076d2b1b3c5c1919b4709fbd1dad08cb0daa",
+      "sha256": "8d02f5743a858ba2a6ddee722a297c515f23d0cbb5ac04ff2e7db1058d686a24",
+      "bytes": 137311,
+      "width": 302,
+      "height": 363
+    }
+  ]
+}
