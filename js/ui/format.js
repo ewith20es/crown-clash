@@ -3,13 +3,13 @@
 import { MATCH } from '../config.js';
 import { CARDS, CARD_BY_ID, DEFAULT_DECK, isValidDeck } from '../data/cards.js';
 
-export const TYPE_LABEL = Object.freeze({ troop: 'Troop', spell: 'Spell', building: 'Building' });
-export const RARITY_LABEL = Object.freeze({ common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' });
-export const RARITY_ORDER = Object.freeze({ common: 0, rare: 1, epic: 2, legendary: 3 });
+export const TYPE_LABEL = Object.freeze({ troop: 'Troop', spell: 'Spell', building: 'Building', tower: 'Tower troop' });
+export const RARITY_LABEL = Object.freeze({ common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', champion: 'Champion' });
+export const RARITY_ORDER = Object.freeze({ common: 0, rare: 1, epic: 2, legendary: 3, champion: 4 });
 export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
 export const QUALITIES = Object.freeze(['low', 'medium', 'high']);
 export const PHASES = Object.freeze(['regular', 'surge', 'overtime', 'ended']);
-export const FILTERS = Object.freeze(['all', 'troop', 'spell', 'building']);
+export const FILTERS = Object.freeze(['all', 'troop', 'spell', 'building', 'evolution', 'hero', 'champion']);
 
 export function clampNum(v, lo, hi) {
   const n = Number(v);
@@ -44,7 +44,7 @@ export function cardInitial(card) {
 
 /** Collection order for the deck builder. `filter`: all | troop | spell | building; `sort`: cost-asc | cost-desc. */
 export function filterAndSort(cards, filter = 'all', sort = 'cost-asc') {
-  const list = (cards || CARDS).filter((c) => filter === 'all' || c.type === filter);
+  const list = (cards || CARDS).filter((c) => filter === 'all' || c.type === filter || c.variant === filter || c.rarity === filter);
   const dir = sort === 'cost-desc' ? -1 : 1;
   const index = new Map(list.map((c, i) => [c.id, i]));
   list.sort((a, b) => (a.cost - b.cost) * dir
@@ -61,8 +61,8 @@ export function filterAndSort(cards, filter = 'all', sort = 'cost-asc') {
 export function replaceInDeck(deck, slot, cardId) {
   if (!Array.isArray(deck) || !CARD_BY_ID[cardId]) return null;
   if (!Number.isInteger(slot) || slot < 0 || slot >= deck.length) return null;
-  const cur = deck.indexOf(cardId);
-  if (cur === slot) return null;
+  const cur = deck.findIndex(id => CARD_BY_ID[id]?.family === CARD_BY_ID[cardId].family);
+  if (deck[slot] === cardId) return null;
   const next = deck.slice();
   if (cur >= 0) next[cur] = next[slot];
   next[slot] = cardId;
@@ -99,6 +99,7 @@ export function normalizeState(s, base) {
   if (isValidDeck(s.deck)) out.deck = s.deck.slice();
   if (Number.isFinite(Number(s.trophies)) && s.trophies !== null && s.trophies !== '') out.trophies = Math.max(0, Math.round(Number(s.trophies)));
   if (DIFFICULTIES.includes(s.difficulty)) out.difficulty = s.difficulty;
+  if (['tower-princess','cannoneer','dagger-duchess','royal-chef'].includes(s.towerTroop)) out.towerTroop=s.towerTroop;
   if (s.settings) out.settings = normalizeSettings(s.settings, out.settings);
   if (typeof s.firstRun === 'boolean') out.firstRun = s.firstRun;
   return out;

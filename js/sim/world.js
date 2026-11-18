@@ -5,6 +5,7 @@ import {
   pointInRects, clampToRects, onBridge, inRift, formationOffsets, clamp, snap,
 } from '../config.js';
 import { UNITS, CARD_BY_ID, DEFAULT_DECK, isValidDeck } from '../data/cards.js';
+import { abilityList, activateAbility, updateExtra, beforeAttack, afterHit, extraDeath, damageMultiplier } from './collection-mechanics.js';
 import { Rng } from './rng.js';
 import { RH, laneHalf, bridgeX, inBand, onLane, sideOf, segmentCrossesRift, angleDiff, wrapAngle } from './nav.js';
 import { resolveSpell, resolveStrike, resolveFuse, updateZones, updateRollers } from './spells.js';
@@ -27,7 +28,7 @@ const TWO_PI = Math.PI * 2;
 const EMPTY = Object.freeze([]);
 
 function canHit(def, team, t) {
-  if (!t.alive || t.team === team) return false;
+  if (!t.alive || t.team === team || t.invisibleUntil > 0) return false;
   if (def.targets === 'buildings') return t.kind !== 'unit';
   if (def.targets === 'both') return !(def.lob && t.flying);
   return !t.flying;
@@ -85,7 +86,7 @@ export class World {
       const deck = isValidDeck(decks[team]) ? decks[team].slice() : DEFAULT_DECK.slice();
       const order = this.rng.shuffle(deck.slice());
       return {
-        team, aether: MATCH.AETHER_START, deck,
+        team, aether: MATCH.AETHER_START, deck, cycles: {}, lastCard: null,
         hand: order.slice(0, MATCH.HAND_SIZE), next: order[MATCH.HAND_SIZE], queue: order.slice(MATCH.HAND_SIZE + 1), stars: 0,
       };
     });
@@ -94,7 +95,7 @@ export class World {
       const out = {};
       for (const slot of ['left', 'right', 'citadel']) {
         const p = towerPosition(team, slot);
-        const e = this._create(slot === 'citadel' ? 'citadel' : 'spire', team, p.x, p.z, 0, null, slot);
+        const e = this._create(slot === 'citadel' ? 'citadel' : (UNITS[o.towerTroops?.[team]]?.kind === 'tower' ? o.towerTroops[team] : 'spire'), team, p.x, p.z, 0, null, slot);
         if (slot === 'citadel') e.active = false;
         out[slot] = e;
       }
@@ -118,6 +119,14 @@ export class World {
     return configDeployRects(t, { left: enemy.left.alive, right: enemy.right.alive });
   }
 
+  abilities(team) { return abilityList(this, team); }
+  activateAbility(team, id) { return activateAbility(this, team, id); }
+  cardCost(team, card) {
+    if (card?.family === 'mirror') return Math.min(10, (CARD_BY_ID[this.players[team].lastCard]?.cost || 0) + 1);
+    if (card?.dualForm && this.players[team].aether >= 6) return 6;
+    return card?.cost || 0;
+  }
+
   canPlay(team, handIndex, x, z) {
     const res = { ok: false, reason: null, x: 0, z: 0, clamped: false, card: null };
     let rx = Number(x);
@@ -130,14 +139,15 @@ export class World {
     const card = (id && CARD_BY_ID[id]) || null;
     res.card = card;
     if (card) {
-      this._resolveDeployPoint(team, card, rx, rz, res);
+      this._resolveDeployPoint(team, card.family === 'mirror' && player.lastCard ? CARD_BY_ID[player.lastCard] : card, rx, rz, res);
     } else {
       res.x = clamp(snap(rx), -HW, HW);
       res.z = clamp(snap(rz), -HL, HL);
     }
     if (this.phase === 'ended') res.reason = 'ended';
     else if (!card) res.reason = 'card';
-    else if (player.aether + EPS < card.cost) res.reason = 'aether';
+    else if (card.family === 'mirror' && !player.lastCard) res.reason = 'mirror';
+    else if (player.aether + EPS < this.cardCost(team, card)) res.reason = 'aether';
     res.ok = res.reason === null;
     return res;
   }
@@ -145,15 +155,24 @@ export class World {
   playCard(team, handIndex, x, z) {
     const res = this.canPlay(team, handIndex, x, z);
     if (!res.ok) return false;
-    const card = res.card;
+    let card = res.card;
     const p = this.players[team];
-    p.aether = Math.max(0, p.aether - card.cost);
+    const cost = this.cardCost(team, card);
+    p.aether = Math.max(0, p.aether - cost);
+    if (card.family === 'mirror') card = {...CARD_BY_ID[p.lastCard], cost};
+    else p.lastCard = card.id;
+    if (card.variant === 'evolution') {
+      const count = p.cycles[card.id] || 0;
+      p.cycles[card.id] = count >= card.cycles ? 0 : count + 1;
+      if (count < card.cycles) card = CARD_BY_ID[card.baseId];
+    }
+    if (card.dualForm) card = {...card, unit: cost >= 6 ? card.dualForm.unit : card.dualForm.ground};
     const played = p.hand[handIndex];
     p.hand[handIndex] = p.next;
     p.next = p.queue.shift();
     p.queue.push(played);
     const st = this.stats[team];
-    st.aetherSpent += card.cost;
+    st.aetherSpent += cost;
     st.cardsPlayed += 1;
     this._emit({ type: 'cardPlayed', team, cardId: card.id, handIndex, x: res.x, z: res.z });
 
@@ -165,6 +184,7 @@ export class World {
       this._emit({ type: 'spellCast', team, cardId: card.id, kind: s.kind, x: res.x, z: res.z, radius, delay });
       return true;
     }
+    for (const group of card.groups || []) this._spawnGroup(group.unit, team, res.x + .6, res.z + 1, group.count, 1, card.id, false);
     const def = UNITS[card.unit];
     if (def.deployAnywhere) {
       const from = towerPosition(team, 'citadel');
@@ -264,7 +284,7 @@ export class World {
     const y = def.flying ? ARENA.FLY_HEIGHT : 0;
     const dep = deployTime > 0 ? deployTime : 0;
     const e = {
-      id: this._newId(), kind: def.kind, type, def, team, slot: slot ?? null, cardId: cardId ?? null,
+      bornAt: this.time, id: this._newId(), kind: def.kind, type, def, team, slot: slot ?? null, cardId: cardId ?? null,
       x, z, y, px: x, pz: z, py: y,
       facing: team === 0 ? Math.PI : 0, radius: def.radius, flying: !!def.flying,
       hp: def.hp, maxHp: def.hp, shield: def.shield || 0, maxShield: def.shield || 0, alive: true, active: true,
@@ -334,6 +354,7 @@ export class World {
     let x = sx;
     let z = sz;
     if (card.type === 'spell') {
+      if(card.spell.ownSide){const c=clampToRects(x,z,this.deployRects(team),ARENA.EDGE_MARGIN);x=c.x;z=c.z;}
       x = clamp(x, -HW, HW);
       z = clamp(z, -HL, HL);
     } else {
@@ -409,12 +430,16 @@ export class World {
 
   _damage(v, amount, srcTeam, sourceType) {
     if (!v.alive || !(amount > 0)) return 0;
+    amount *= damageMultiplier(this, v);
+    if (v.immortalUntil > this.time) amount = Math.min(amount, Math.max(0, v.hp - 1));
+    if (!(amount > 0)) return 0;
     let applied;
     if (v.shield > 0) {
       applied = Math.min(amount, v.shield);
       v.shield -= amount;
       if (v.shield <= 0) {
         v.shield = 0;
+        if (v.def.shieldBlast) this.pending.push({kind:'fuse',team:v.team,x:v.x,z:v.z,timeLeft:0,blast:v.def.shieldBlast,sourceType:v.type});
         this._emit({ type: 'shieldBreak', id: v.id, team: v.team, x: v.x, y: v.y, z: v.z });
       }
     } else {
@@ -434,6 +459,12 @@ export class World {
     });
     if (v.kind === 'tower' && !v.active) this._wake(v);
     if (fatal) this._kill(v);
+    else if (v.def.landOnHit && v.flying) {
+      const landing=v.def.landOnHit;
+      v.flying=false;v.y=0;v.def={...v.def,flying:false,landing,landOnHit:null};
+      const pt=this._legalize(v.x,v.z,v.radius,false,v.team);v.x=pt.x;v.z=pt.z;
+      this._landing(v);
+    }
     return applied;
   }
 
@@ -518,6 +549,7 @@ export class World {
     const amount = Math.round(v.kind === 'tower' ? dmg * def.towerDmgMult : dmg);
     this._damage(v, amount, team, sourceType);
     this._onHit(v, def.onHit, fromX, fromZ, team);
+    afterHit(this, def, team, v, sourceType, fromX, fromZ);
   }
 
   _areaHit(def, team, cx, cz, radius, dmg, fromX, fromZ, sourceType) {
@@ -569,6 +601,8 @@ export class World {
   }
 
   _updateEntity(e, dt) {
+    updateExtra(this, e, dt);
+    if (!e.alive) return;
     const def = e.def;
     e.stateTime += dt;
     if (e.frozen > 0) { e.frozen -= dt; if (e.frozen < 0) e.frozen = 0; }
@@ -602,7 +636,7 @@ export class World {
 
     const rate = (e.slowT > 0 ? 1 - e.slowPct : 1) * (e.hasteT > 0 ? 1 + e.hastePct : 1);
 
-    if (def.spawn && (!def.spawn.enemyRange || this.entities.some(v => v.alive && v.team !== e.team && Math.hypot(v.x - e.x, v.z - e.z) - v.radius <= def.spawn.enemyRange))) {
+    if (def.spawn && (!def.spawn.below || e.hp/e.maxHp <= def.spawn.below) && (!def.spawn.enemyRange || this.entities.some(v => v.alive && v.team !== e.team && Math.hypot(v.x - e.x, v.z - e.z) - v.radius <= def.spawn.enemyRange))) {
       e._spawnT -= dt;
       if (e._spawnT <= T_EPS) {
         this._produce(e);
@@ -738,12 +772,14 @@ export class World {
 
   _landBlow(e, t, mult, instant) {
     const def = e.def;
-    const dmg = Math.round(def.dmg * mult);
+    const extra = beforeAttack(this, e, t, Math.round(def.dmg * mult));
+    if (extra.handled) return;
+    const dmg = extra.damage;
     if (def.heal?.onAttack) this._healPulse(e);
     if (def.projectile && !instant) { this._shoot(e, t, dmg); return; }
     if (def.kamikaze) {
       if (def.chain) this._chainHit(e, t, dmg);
-      else if (def.splash > 0) this._areaHit(def, e.team, e.x, e.z, def.splash, dmg, e.x, e.z, e.type);
+      else if (def.splash > 0) this._areaHit(def, e.team, t.x, t.z, def.splash, dmg, e.x, e.z, e.type);
       else this._hitOne(def, e.team, t, dmg, e.x, e.z, e.type);
       this._emit({ type: 'impact', team: e.team, sourceType: e.type, projKind: null, attackFx: def.attackFx, splash: def.splash, x: e.x, y: e.y, z: e.z });
       this._kill(e);
@@ -857,6 +893,8 @@ export class World {
 
   _unitTarget(e) {
     const def = e.def;
+    const taunt=this._map.get(e.tauntId);
+    if(e.tauntUntil>this.time&&taunt?.alive){e.targetId=taunt.id;return taunt;}
     let cur = e.targetId ? this._map.get(e.targetId) : undefined;
     if (cur && !canHit(def, e.team, cur)) cur = undefined;
     let next = null;
@@ -1425,6 +1463,7 @@ export class World {
       this._map.delete(e.id);
       e.speedNow = 0;
       this._emit({ type: 'death', id: e.id, entType: e.type, kind: e.kind, team: e.team, x: e.x, y: e.y, z: e.z, radius: e.radius });
+      extraDeath(this, e);
       if (e.kind === 'unit') this.stats[e.team].unitsLost += 1;
       if (e.kind === 'tower') this._fallen.push(e);
       if (def.deathSpawn && def.deathSpawn.count > 0) {

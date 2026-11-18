@@ -11,6 +11,8 @@
 //
 // Ability fields (all optional, null/0/false = absent) — see the comments on `unit()` below.
 
+import { expandCollection } from './collection.js';
+import { LEGACY_CARD_ART } from './royale-art.js';
 import { MATCH } from '../config.js';
 import { level11Units, level11Cards } from './level11.js';
 
@@ -75,7 +77,7 @@ function unit(o) {
 }
 
 // Desktop mechanics templates; the sourced level 11 snapshot is applied before freezing.
-export const UNITS = deepFreeze(level11Units({
+const BASE_UNITS = level11Units({
   goblin: unit({ name: 'Goblin', hp: 190, dmg: 105, hitSpeed: 1.1, windup: .25, range: .9, speed: 1.7, radius: .3, mass: 2, height: 1.05 }),
   speargoblin: unit({ name: 'Spear Goblin', hp: 115, dmg: 70, hitSpeed: 1.5, windup: .3, range: 5, sight: 6, targets: 'both', projectile: 'bolt', projSpeed: 15, speed: 1.7, radius: .3, mass: 2, height: 1.05, muzzle: .8 }),
   barbarian: unit({ name: 'Barbarian', hp: 670, dmg: 180, hitSpeed: 1.3, windup: .35, range: 1, speed: 1, radius: .4, mass: 4, height: 1.55 }),
@@ -247,14 +249,14 @@ export const UNITS = deepFreeze(level11Units({
     speed: 0, radius: 0.95, mass: Infinity, height: 1.9, lifetime: 56,
     generate: { amount: 1, interval: 8 },
   }),
-}));
+});
 
 function card(o) {
   return { count: 1, unit: null, spell: null, tags: [], ...o };
 }
 
 /** type: 'troop' | 'building' | 'spell'. `tags` describe the card's role for the AI and the UI. */
-export const CARDS = deepFreeze(level11Cards([
+const BASE_CARDS = level11Cards([
   card({ id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', unit: 'mite', count: 3, rarity: 'common', tags: ['cheap', 'swarm', 'melee'], desc: 'Three fragile skeletons. Distract a heavy hitter and cycle your deck cheaply.' }),
   card({ id: 'goblins', name: 'Goblins', cost: 2, type: 'troop', unit: 'goblin', count: 4, rarity: 'common', tags: ['cheap', 'swarm', 'melee', 'fast'], desc: 'Four fast dagger fighters. Surround isolated ground troops.' }),
   card({ id: 'speargoblins', name: 'Spear Goblins', cost: 2, type: 'troop', unit: 'speargoblin', count: 3, rarity: 'common', tags: ['cheap', 'swarm', 'ranged', 'anti-air'], desc: 'Three fragile ranged goblins that can hit both ground and air.' }),
@@ -470,9 +472,14 @@ export const CARDS = deepFreeze(level11Cards([
     spell: { kind: 'skyfork', radius: 3.5, damage: 660, strikes: 3, strikeGap: 0.15, stun: 0.5, towerMult: 0.35, delay: 0.4 },
     desc: 'Three bolts strike the three toughest enemies in the area, stunning each.',
   }),
-]));
+]);
 
-export const CARD_BY_ID = Object.freeze(Object.fromEntries(CARDS.map((c) => [c.id, c])));
+const fullCollection = expandCollection(BASE_UNITS, BASE_CARDS, unit, LEGACY_CARD_ART);
+export const UNITS = deepFreeze(fullCollection.units);
+export const CARDS = deepFreeze(fullCollection.cards);
+export const TOWER_CARDS = deepFreeze(fullCollection.towers);
+
+export const CARD_BY_ID = Object.freeze(Object.fromEntries([...CARDS,...TOWER_CARDS].map((c) => [c.id, c])));
 
 export const DEFAULT_DECK = Object.freeze([
   'warden', 'scouts', 'colossus', 'longshot', 'breaker', 'mites', 'comet', 'shardstorm',
@@ -493,7 +500,8 @@ export const OPPONENTS = deepFreeze([
 
 export function isValidDeck(deck) {
   return Array.isArray(deck) && deck.length === MATCH.DECK_SIZE
-    && new Set(deck).size === MATCH.DECK_SIZE && deck.every((id) => CARD_BY_ID[id]);
+    && new Set(deck.map(id => CARD_BY_ID[id]?.family)).size === MATCH.DECK_SIZE
+    && deck.every((id) => CARD_BY_ID[id] && CARD_BY_ID[id].type !== 'tower');
 }
 
 export function averageCost(deck) {
@@ -516,6 +524,8 @@ export function cardStats(card) {
   const rows = [];
   const add = (label, value) => rows.push({ label, value: String(value) });
   add('Level', card.level);
+  if(card.ability){add('Ability cost',card.ability.cost+' elixir');add('Ability uses',card.ability['Ability charges']||'1');}
+  if(card.variant==='evolution')add('Evolution cycles',card.cycles);
   if (card.type === 'spell') {
     const s = card.spell;
     if (s.radius) add('Radius', `${s.radius} tiles`);
@@ -545,6 +555,9 @@ export function cardStats(card) {
       add('Boost', `+${Math.round(s.haste * 100)}%`);
       add('Duration', `${s.duration} s`);
     }
+    if(s.kind==='graveyard'){add('Skeletons',s.count);add('Duration',s.duration+' s');}
+    if(s.kind==='void'){add('Damage per wave',s.damageStages.join(' / '));add('Tower damage per wave',s.crownStages.join(' / '));}
+    if(s.kind==='vines'){add('Damage / s',s.dps);add('Duration',s.duration+' s');}
     if (s.kind === 'overclock') { add('Boost', `+${Math.round(s.haste * 100)}%`); add('Duration', `${s.duration} s`); }
     if (s.kind === 'stasis') add('Freeze', `${s.duration} s`);
     if (s.stun) add('Stun', `${s.stun} s`);
@@ -584,6 +597,8 @@ export function cardStats(card) {
 /** Short ability sentences for a card (may be empty). Used by the deck builder's detail panel. */
 export function cardAbilities(card) {
   const out = [];
+  if (card.variant === 'evolution') out.push(`Evolution: activates after ${card.cycles} regular deployments of this card.`);
+  if (card.ability) out.push(`Ability: costs ${card.ability.cost} elixir. Use the ability button after deployment.`);
   if (card.type === 'spell') return out;
   const u = UNITS[card.unit];
   if (u.charge) out.push(`Charge: after ${u.charge.dist} tiles of running it moves ${u.charge.speedMult}× as fast and its next hit deals ${Math.round(u.dmg * u.charge.dmgMult)} damage.`);

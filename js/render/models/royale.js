@@ -35,11 +35,49 @@ const profiles = {
   drillworm: { h: 1.5, w: .31, knight: true, miner: true },
 };
 
+Object.assign(profiles, {
+  'archer-queen':{h:2.1,w:.33,archer:true,crown:true,hair:0x792ca0},
+  'princess':{h:1.7,w:.24,archer:true,crown:true,hair:0x38243f},
+  'magic-archer':{h:1.85,w:.28,archer:true,hair:0x4ad0ce},
+  'little-prince':{h:1.35,w:.24,musket:true,crown:true},
+  'golden-knight':{h:2,w:.4,knight:true,golden:true},
+  'skeleton-king':{h:2.5,w:.58,skeleton:true,crown:true,mega:true},
+  'mighty-miner':{h:2,w:.47,knight:true,miner:true,musket:true},
+  'monk':{h:1.9,w:.36,barbarian:true,monk:true},
+  'boss-bandit':{h:2.3,w:.46,bandit:true},
+  'goblinstein':{h:1.55,w:.33,goblin:true,wizard:true},
+  'goblinstein--monster':{h:2.7,w:.62,goblin:true,giant:true},
+  'ronin':{h:1.85,w:.36,knight:true,ronin:true},
+  'pekka':{h:2.5,w:.55,pekka:true},
+  'dark-prince':{h:2.4,w:.36,knight:true,shield:true,mount:'horse'},
+  'fisherman':{h:1.7,w:.4,barbarian:true,spear:true},
+  'lumberjack':{h:1.8,w:.34,barbarian:true,valkyrie:true},
+  'hunter':{h:1.8,w:.42,musket:true},
+  'berserker':{h:1.6,w:.3,valkyrie:true},
+  'firecracker':{h:1.5,w:.25,musket:true,hair:0xe28237},
+  'dart-goblin':{h:1.1,w:.21,goblin:true,musket:true},
+  'goblin-gang':{h:1.1,w:.21,goblin:true},
+  'goblin-giant':{h:2.7,w:.66,goblin:true,giant:true},
+  'rune-giant':{h:2.6,w:.65,giant:true,golden:true},
+  'electro-giant':{h:2.7,w:.66,giant:true,electric:true},
+  'royal-recruits':{h:1.7,w:.33,knight:true,spear:true,shield:true},
+  'three-musketeers':{h:1.8,w:.29,musket:true},
+  'rascals':{h:2.1,w:.5,barbarian:true},
+  'rascals--rascal-girl':{h:1.4,w:.24,archer:true,hair:0xe66cc3},
+  'night-witch':{h:1.8,w:.3,witch:true,wizard:true},
+  'mother-witch':{h:1.75,w:.32,witch:true,wizard:true},
+  'bowler':{h:2.3,w:.6,giant:true,bomb:true,bowler:true,skin:0x8571b9},
+});
+for(const [id,u] of Object.entries(UNITS)){
+  if(u.variant&&profiles[u.family])profiles[id]={...profiles[u.family],variant:u.variant};
+  else if(u.variant&&profiles[u.model])profiles[id]={...profiles[u.model],variant:u.variant};
+}
+
 function royalTroop(type, team) {
   const p = profiles[type], { h, w } = p;
   const def = defineModel(`royale:${type}:${team}`, m => {
-    const pal = teamPalette(team), face = p.skeleton ? bone : p.goblin ? col(0x7dc94b) : skin;
-    const bodyColor = p.pekka ? dark : p.barbarian ? skin : p.giant ? leather : p.skeleton ? bone : p.knight ? steel : pal.main;
+    const pal = teamPalette(team), face = p.skeleton ? bone : p.goblin ? col(0x7dc94b) : p.skin?col(p.skin):skin;
+    const bodyColor = p.pekka ? dark : p.barbarian ? skin : p.giant ? leather : p.skeleton ? bone : p.knight ? (p.golden?gold:steel) : pal.main;
     const hip = h * .28, shoulder = h * .64, head = h * .82;
     const legR = m.part('legR', { pivot: [-w * .5, hip, 0] });
     legR.paint.limb([-w * .5, hip, 0], [-w * .6, h * .1, 0], w * .28, w * .26, p.skeleton ? bone : leather);
@@ -67,8 +105,8 @@ function royalTroop(type, team) {
       for (let i = 0; i < 3; i++) b.torus(w * .85, .028, bone, { at: [0, h * (.43 + i * .07), 0], scale: [1, 1, .6], seg: 10 });
     }
     b.ball(w * .83, h * .17, w * .8, p.pekka ? steel : face, { at: [0, head, 0], seg: 18, rings: 12 });
-    if (p.archer || p.musket || p.giant || p.barbarian || p.valkyrie) {
-      const hair = p.archer ? pink : p.barbarian ? gold : p.musket && !p.giant ? purple : ginger;
+    if (!p.bowler && !p.monk && (p.archer || p.musket || p.giant || p.barbarian || p.valkyrie)) {
+      const hair = p.hair ? col(p.hair) : p.archer ? pink : p.barbarian ? gold : p.musket && !p.giant ? purple : ginger;
       b.ball(w * .91, h * .1, w * .87, hair, { at: [0, head + h * .1, -.035], seg: 16 });
       if (!p.giant) for (const x of [-1, 1]) b.ball(w * .25, h * .18, w * .4, hair, { at: [x * w * .72, head - h * .02, 0] });
       if (p.giant) b.ball(w * .7, h * .065, w * .3, ginger, { at: [0, head - h * .12, w * .65] });
@@ -79,6 +117,10 @@ function royalTroop(type, team) {
       if (p.musket) b.ball(.1, .32, .12, purple, { at: [0, h * 1.08, -.05], rot: [-.3, 0, 0] });
       if (p.knight) for (const x of [-1, 1]) b.ball(w * .35, .075, .08, gold, { at: [x * w * .25, head - .065, w * .79] });
     }
+    if(p.crown){b.cyl(w*.82,w*.82,.14,gold,{at:[0,head+h*.17,0],seg:8});for(let i=0;i<5;i++)b.cone(.06,.21,gold,{at:[Math.sin(i*1.256)*w*.76,head+h*.24,Math.cos(i*1.256)*w*.76],seg:4});}
+    if(p.ronin)b.cone(w*1.7,.25,gold,{at:[0,head+h*.22,0],seg:12});
+    if(p.electric){b.cyl(.16,.16,1.15,steel,{at:[-.43,h*.6,-.3]});b.cyl(.16,.16,1.15,steel,{at:[.43,h*.6,-.3]});}
+    if(p.variant)torso.glow.sphere(.10,p.variant==='hero'?gold:purple,{at:[0,h*.57,w*.72]});
     if (p.pekka) {
       b.box(w * 1.5, h * .12, .09, dark, { at: [0, head, w * .78], bevel: .03 });
       for (const x of [-1, 1]) {
@@ -139,7 +181,7 @@ function royalTroop(type, team) {
       right.metal.cyl(.085, .085, .9, steel, { at: [-w, h * .53, .85], rot: [Math.PI / 2, 0, 0], seg: 14 });
       right.paint.cyl(.062, .062, .012, dark, { at: [-w, h * .53, 1.31], rot: [Math.PI / 2, 0, 0] });
       right.metal.torus(.09, .025, gold, { at: [-w, h * .53, 1.28], rot: [Math.PI / 2, 0, 0] });
-    } else if (!p.giant && !p.bomb && !p.mega) {
+    } else if (!p.giant && !p.bomb && !p.mega && !p.monk) {
       right.metal.box(p.pekka ? .22 : .11, h * .58, .055, steel, { at: [-w * 1.15, h * .68, w * .34], bevel: .015 });
       right.paint.box(w * 1.1, .07, .12, gold, { at: [-w * 1.15, h * .43, w * .34], bevel: .025 });
     }

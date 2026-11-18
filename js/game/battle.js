@@ -82,9 +82,9 @@ export class Battle {
 
   // ───────────────────────── lifecycle ─────────────────────────
 
-  start({ deck, opponent, difficulty, seed, autoplay = false, speed = 1 }) {
+  start({ deck, towerTroop, opponent, difficulty, seed, autoplay = false, speed = 1 }) {
     this.cleanup();
-    this.world = new World({ seed, decks: [deck, opponent.deck] });
+    this.world = new World({ seed, decks: [deck, opponent.deck], towerTroops: [towerTroop,'tower-princess'] });
     this.bot = new Bot(this.world, ENEMY, { difficulty, seed: seed + 7 });
     this.autoBot = autoplay ? new Bot(this.world, PLAYER, { difficulty: 'hard', seed: seed + 13 }) : null;
     this.opponent = opponent;
@@ -234,12 +234,14 @@ export class Battle {
     if (!world) return;
     const p = world.players[PLAYER];
     this.ui.setAether(p.aether, MATCH.AETHER_MAX);
+    this.ui.setAbilities(world.abilities(PLAYER));
     this.ui.setTimer(world.timeLeft, world.phase);
     const sig = p.hand.join(',') + '|' + p.next;
     if (force || sig !== this.handSig) {
       this.handSig = sig;
       this.ui.setHand(p.hand, p.next);
     }
+    this.ui.setHandCosts(p.hand.map(id=>world.cardCost(PLAYER,CARD_BY_ID[id])),p.hand.map(id=>{const c=CARD_BY_ID[id];return (p.cycles[id]||0)>=c.cycles?'READY':`${p.cycles[id]||0}/${c.cycles}`;}));
     if (force) this.ui.setStars(world.players[PLAYER].stars, world.players[ENEMY].stars);
   }
 

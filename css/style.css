@@ -2083,3 +2083,26 @@
   }
   .logo, .btn__glow, .result__rays { animation: none !important; }
 }
+
+/* Expanded collection */
+.collection-tools { padding: 8px 20px; display:grid; gap:8px; }
+.collection-tools .tabs { display:flex; overflow-x:auto; gap:3px; }
+.collection-tools .tab { white-space:nowrap; flex:1; padding:8px 10px; }
+.collection-search-row { display:flex; align-items:center; gap:8px; }
+.collection-search { flex:1; min-width:60px; border:1px solid #51677e; border-radius:9px; padding:9px 12px; color:#fff; background:#12233b; font:inherit; font-size:14px; }
+.collection-search::placeholder { color:#b8c5d5; }
+.collection-count { color:#b8c5d5; font-size:12px; white-space:nowrap; }
+.tower-picker { display:flex; gap:10px; align-items:center; margin-top:10px; font-size:12px; }
+.tower-picker select { color:#fff; background:#233c59; border:1px solid #7995ad; border-radius:6px; padding:5px; }
+.tower-picker__note { opacity:.6; }
+.card__variant { position:absolute; top:4px; right:3px; z-index:4; padding:3px 5px; border-radius:4px; background:#8948cb; color:white; font:bold 10px system-ui; box-shadow:0 1px 3px #0009; }
+.card__variant--hero { background:#b47a08; }
+.rarity--champion { --rarity:#f6ad39; }
+.ability-bar { display:flex; flex-wrap:wrap; justify-content:center; gap:5px; pointer-events:auto; }
+.ability-button { max-width:220px; font-size:11px; min-height:32px; }
+.ability-button:disabled { opacity:.5; cursor:default; }
+@media(max-width:600px){.collection-tools{padding:6px 10px}.collection-tools .tab{font-size:11px;padding:7px 6px}.tower-picker__note{display:none}.tower-picker{margin-top:5px}.collection-count{font-size:10px}}
+
+.collection-tools .tab{flex:0 0 auto;max-width:none;overflow:visible;text-overflow:clip}.collection-tools .tabs{flex-wrap:nowrap;scrollbar-width:thin}.collection-tools{flex:none}
+
+.collection-tools{grid-template-columns:minmax(0,1fr);min-width:0}.collection-tools .tabs{width:100%;min-width:0;max-width:100%}.collection-search-row{min-width:0}.panel--deck{overflow-x:clip}

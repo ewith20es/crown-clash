@@ -25,6 +25,7 @@ export function createCard(cardId, size = 'coll', thumbs) {
     + `<div class="card__art"><span class="card__initial">${escapeHtml(cardInitial(card))}</span>`
     + '<img class="card__img" alt="" draggable="false" decoding="async"></div>'
     + '<div class="card__shine"></div>'
+    + (card.variant && card.variant !== 'base' ? `<span class="card__variant card__variant--${card.variant}">${card.variant === 'evolution' ? 'EVO' : 'HERO'}</span>` : '')
     + `${count}<div class="card__name">${escapeHtml(card.name)}</div>`
     + '</div>'
     + `<div class="card__cost" aria-hidden="true"><span>${card.cost}</span></div>`;

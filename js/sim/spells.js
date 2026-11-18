@@ -18,8 +18,10 @@ function areaDamage(w, p, s, dmg, knockback) {
     const dx = e.x - p.x;
     const dz = e.z - p.z;
     const d = Math.sqrt(dx * dx + dz * dz);
-    if (d - e.radius > s.radius) continue;
+    if (d - e.radius > s.radius || (s.groundOnly && e.flying)) continue;
     w._damage(e, e.kind === 'tower' ? (s.crownDamage ?? dmg * (s.towerMult ?? 1)) : dmg, p.team, p.cardId);
+    if (e.alive && s.slow) w._slow(e,s.slow.pct,s.slow.dur);
+    if (e.alive && s.stun) w._stun(e,s.stun);
     if (knockback > 0 && e.kind === 'unit' && e.alive) {
       const k = knockback * Math.max(0, 1 - d / s.radius);
       if (k > 0) w._knockback(e, dx, dz, k, p.team);
@@ -48,8 +50,30 @@ function addZone(w, p, s) {
 export function resolveSpell(w, p) {
   const s = p.spell;
   switch (s.kind) {
+    case 'clone': {
+      const originals=w.entities.filter(e=>e.alive&&e.team===p.team&&e.kind==='unit'&&!e.isClone&&inArea(e,p.x,p.z,s.radius));
+      for(const e of originals){const c=w.addEntity(e.type,e.team,e.x+.7,e.z,{deployTime:.5,cardId:e.cardId});c.hp=1;c.maxHp=1;c.shield=e.shield>0?1:0;c.isClone=true;c.def={...e.def,ability:null};}
+      impactEvent(w,p,s,0,1,0);return true;
+    }
+    case 'graveyard': {
+      const i=p.wave||0, angle=i*2.399963, radius=s.radius*Math.sqrt((i+.5)/s.count);
+      w._spawnGroup(s.unit,p.team,p.x+Math.cos(angle)*radius,p.z+Math.sin(angle)*radius,1,.3,p.cardId);
+      p.wave=i+1;p.timeLeft+=s.duration/s.count;
+      return p.wave>=s.count;
+    }
+    case 'vines': {
+      const targets=w.entities.filter(e=>e.alive&&e.team!==p.team&&inArea(e,p.x,p.z,s.radius)).sort((a,b)=>b.hp-a.hp).slice(0,s.count);
+      for(const e of targets){w._freeze(e,s.duration);w.pending.push({kind:'strike',team:p.team,x:e.x,z:e.z,timeLeft:1,targetId:e.id,cardId:p.cardId,spell:{damage:s.dps*2,crownDamage:s.crownDps*2,radius:1,kind:'jolt'}});}
+      impactEvent(w,p,s,0,1,s.duration);return true;
+    }
+    case 'void': {
+      const count=w.entities.filter(e=>e.alive&&e.team!==p.team&&inArea(e,p.x,p.z,s.radius)).length,stage=count<=1?0:count<=4?1:2;
+      areaDamage(w,p,{...s,crownDamage:s.crownStages[stage]},s.damageStages[stage],0);
+      impactEvent(w,p,s,p.wave,3,0);p.wave++;p.timeLeft+=s.waveGap;return p.wave>=3;
+    }
     case 'comet':
       areaDamage(w, p, s, s.damage, s.knockback || 0);
+      if (s.unit) w._spawnGroup(s.unit,p.team,p.x,p.z,s.count||1,.5,p.cardId);
       impactEvent(w, p, s, 0, 1, 0);
       return true;
     case 'shardstorm': {
@@ -104,6 +128,7 @@ export function resolveSpell(w, p) {
     }
     case 'seedpod':
       w._spawnGroup(s.unit, p.team, p.x, p.z, s.count, 0.5, p.cardId, false);
+      if(s.evolution==='goblin-barrel')w._spawnGroup('goblin',p.team,-p.x,p.z,3,.5,p.cardId,false);
       impactEvent(w, p, s, 0, 1, 0);
       return true;
     case 'skyfork': {
@@ -197,8 +222,9 @@ export function updateZones(w, dt) {
         for (let i = 0; i < ents.length; i++) {
           const e = ents[i];
           if (!e.alive || e.team === zn.team || !inArea(e, zn.x, zn.z, zn.radius)) continue;
-          if (s.troopsOnly && e.kind === 'building') continue;
-          const dmg = e.kind === 'tower' ? (s.crownTickDamage ?? (s.crownDps !== undefined ? s.crownDps * tick : amount * (s.towerMult ?? 1))) : amount;
+          if (s.troopsOnly && e.kind === 'building' || s.groundOnly && e.flying) continue;
+          if(s.curse&&e.kind==='unit'){e.cursedBy=zn.team;e.curseUnit=s.curse;e.curseUntil=w.time+1.1;}
+          const dmg = e.kind === 'tower' ? (s.crownTickDamage ?? (s.crownDps !== undefined ? s.crownDps * tick : amount * (s.towerMult ?? 1))) : e.kind === 'building' && s.buildingDps ? s.buildingDps*tick : amount;
           if (dmg > 0) w._damage(e, dmg, zn.team, zn.cardId);
           if (zn.kind === 'blight' && e.alive && s.slow > 0) {
             e.slowPct = Math.max(e.slowT > 0 ? e.slowPct : 0, s.slow);
@@ -239,6 +265,7 @@ export function updateRollers(w, dt) {
     }
     const out = r.z < -ARENA.HALF_L - 0.5 || r.z > ARENA.HALF_L + 0.5;
     if (r.traveled < r.length - EPS && !out && step > 0) rollers[n++] = r;
+    else if(s.unit)w._spawnGroup(s.unit,r.team,r.x,r.z,s.count||1,.5,r.cardId);
   }
   rollers.length = n;
 }

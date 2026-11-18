@@ -21,6 +21,7 @@ export function defaultQuality() {
 export function loadState() {
   const state = {
     deck: [...DEFAULT_DECK],
+    towerTroop: 'tower-princess',
     trophies: 0,
     difficulty: 'normal',
     settings: { quality: defaultQuality(), sfx: true, music: true },
@@ -30,6 +31,7 @@ export function loadState() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (raw && typeof raw === 'object') {
+      if (['tower-princess','cannoneer','dagger-duchess','royal-chef'].includes(raw.towerTroop)) state.towerTroop=raw.towerTroop;
       if (isValidDeck(raw.deck)) state.deck = [...raw.deck];
       if (Number.isFinite(raw.trophies)) state.trophies = Math.max(0, Math.round(raw.trophies));
       if (DIFFICULTIES.includes(raw.difficulty)) state.difficulty = raw.difficulty;
@@ -53,6 +55,7 @@ export function saveState(state) {
   try {
     localStorage.setItem(KEY, JSON.stringify({
       deck: state.deck,
+      towerTroop: state.towerTroop,
       trophies: state.trophies,
       difficulty: state.difficulty,
       settings: state.settings,

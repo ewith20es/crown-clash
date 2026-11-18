@@ -19,7 +19,8 @@ export { renderCardThumbs } from './thumbs.js';
 /** EntityView for any UNITS type (placeholder when the type has no model). Never throws. */
 export function createEntityView(type, team) {
   const t = team === 1 ? 1 : 0;
-  const b = Object.prototype.hasOwnProperty.call(UNIT_BUILDERS, type) ? UNIT_BUILDERS[type] : null;
+  const key = UNIT_BUILDERS[type] ? type : UNITS[type]?.model;
+  const b = UNIT_BUILDERS[key];
   if (b) {
     try {
       const v = b(t);

@@ -270,13 +270,26 @@ export class UI {
     h('div', { class: 'aether__gem' }, h('span', { class: 'aether__gem-icon', html: icon('aether') }), this.aeNum),
     h('div', { class: 'aether__track' }, this.aeFill, segs));
 
+    this.abilityBar=h('div',{class:'ability-bar','aria-label':'Champion and Hero abilities'});
     this.elBottom = h('div', { class: 'hud-bottom' },
+      this.abilityBar,
       this.elHint,
       h('div', { class: 'hud-row' }, next, hand),
       this.aeBar);
 
     this.bannerLayer = h('div', { class: 'banner-layer', 'aria-live': 'assertive' });
     this.elBattle = h('div', { class: 'scr scr-battle', id: 'ui-battle' }, this.elTop, this.bannerLayer, this.elBottom);
+  }
+
+  setAbilities(abilities) {
+    const signature=abilities.map(a=>`${a.id}:${a.remaining}:${Math.ceil(a.cooldown)}:${a.ready}`).join('|');
+    if(signature===this.abilitySignature)return;
+    this.abilitySignature=signature;
+    this.abilityBar.replaceChildren(...abilities.map(a=>h('button',{
+      class:'btn btn--gold btn--xs ability-button',type:'button',disabled:!a.ready,
+      text:`${a.name}: ${a.remaining<=0?'Used':a.cooldown>0?Math.ceil(a.cooldown)+'s':a.cost+' elixir'}`,
+      'aria-label':`Activate ${a.name} ability`,onclick:()=>this._emit('ability',a.id),
+    })));
   }
 
   _buildResult() {
@@ -319,6 +332,8 @@ export class UI {
     this.deckBuilder = new DeckBuilder({
       ...base,
       getDeck: () => this.state.deck,
+      getTower: () => this.state.towerTroop || 'tower-princess',
+      setTower: id => { this.state.towerTroop=id; this._emit('towerChange',id); },
       setDeck: (d) => this._setDeck(d),
       getThumbs: () => this.thumbs,
     });
@@ -647,6 +662,15 @@ export class UI {
       if (t && t.hasPointerCapture && t.hasPointerCapture(ev.pointerId)) t.releasePointerCapture(ev.pointerId);
     } catch { /* not captured */ }
     this._emit('cardPointerDown', i, ev);
+  }
+
+  setHandCosts(costs, cycles) {
+    for (let i=0;i<this.slots.length;i++) {
+      const slot=this.slots[i];if(!slot.cardEl)continue;
+      if(slot.cost!==costs[i]){slot.cost=costs[i];slot.cardEl.querySelector('.card__cost span').textContent=costs[i];this._applyAfford(slot,false);}
+      const badge=slot.cardEl.querySelector('.card__variant--evolution');
+      if(badge)badge.textContent=cycles[i];
+    }
   }
 
   setHand(hand, next) {

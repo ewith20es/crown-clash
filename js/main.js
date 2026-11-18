@@ -55,6 +55,8 @@ class Game {
       state: this.state,
       on: {
         play: () => this.startMatch(),
+        towerChange: (id) => {this.state.towerTroop=id;saveState(this.state);},
+        ability: (id) => {if(this.battle.canPlayerAct())this.battle.world.activateAbility(0,id);},
         deckChange: (deck) => { this.state.deck = [...deck]; saveState(this.state); },
         difficultyChange: (d) => { this.state.difficulty = d; saveState(this.state); },
         settingsChange: (s) => this.applySettings(s),
@@ -182,7 +184,7 @@ class Game {
     const seed = Number(params.get('seed')) || ((Math.random() * 0x7fffffff) | 0) || 1;
     this.ui.showBattle({ playerName: 'You', enemyName: opponent.name, enemyTitle: opponent.title });
     this.battle.start({
-      deck: this.state.deck, opponent, difficulty: this.state.difficulty, seed,
+      deck: this.state.deck, towerTroop: this.state.towerTroop, opponent, difficulty: this.state.difficulty, seed,
       autoplay: params.has('autoplay'), speed: Math.max(0.25, Number(params.get('speed')) || 1),
     });
     this.stage.setCameraMode('battle');

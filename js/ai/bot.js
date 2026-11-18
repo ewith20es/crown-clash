@@ -52,6 +52,7 @@ export class Bot {
     this.thinkT -= dt;
     if (this.thinkT > 0) return;
     this.thinkT = this.range(this.p.think);
+    for(const a of w.abilities(this.team))if(a.ready&&w.entities.some(e=>e.alive&&e.team!==this.team&&e.kind==='unit'&&Math.hypot(e.x-w.getEntity(a.id).x,e.z-w.getEntity(a.id).z)<6)) {w.activateAbility(this.team,a.id);break;}
     try { this.think(); } catch (err) {
       if (!this.warned) { this.warned = true; console.warn('[bot] think failed', err); }
     }

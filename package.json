@@ -1,0 +1,11 @@
+{
+  "name": "crown-clash",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Crown Clash — a lightweight real-time card battler that runs as a static site (GitHub Pages ready).",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "test": "node --test tests/"
+  }
+}

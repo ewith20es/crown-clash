@@ -3,13 +3,13 @@
 // Editing flows (the deck always stays 8 distinct cards):
 //   collection card -> detail -> "Add to deck" -> tap the deck slot to replace
 //   deck slot       -> detail -> "Swap out"    -> tap a collection card to put in its place
-import { CARDS, CARD_BY_ID, averageCost, cardStats, cardAbilities } from '../data/cards.js';
+import { TOWER_CARDS, CARDS, CARD_BY_ID, averageCost, cardStats, cardAbilities } from '../data/cards.js';
 import { h } from './dom.js';
 import { icon } from './icons.js';
 import { createCard, applyArtAll } from './card.js';
 import { filterAndSort, replaceInDeck, swapSlots, splitAbility, TYPE_LABEL, RARITY_LABEL, FILTERS } from './format.js';
 
-const FILTER_LABEL = { all: 'All', troop: 'Troops', spell: 'Spells', building: 'Buildings' };
+const FILTER_LABEL = { all: 'All', troop: 'Troops', spell: 'Spells', building: 'Buildings', evolution:'Evolutions', hero:'Heroes', champion:'Champions' };
 
 export class DeckBuilder {
   /**
@@ -18,6 +18,7 @@ export class DeckBuilder {
   constructor(ctx) {
     this.ctx = ctx;
     this.filter = 'all';
+    this.query = '';
     this.sort = 'cost-asc';
     this.pick = null;          // { card: id } | { slot: index }
     this.detailId = null;
@@ -70,7 +71,12 @@ export class DeckBuilder {
       class: 'btn btn--steel btn--xs sort-btn', type: 'button', 'aria-label': 'Sort by cost',
       onclick: () => { ctx.sound('tab'); this.sort = this.sort === 'cost-asc' ? 'cost-desc' : 'cost-asc'; this.renderGrid(); },
     }, h('span', { class: 'btn__icon', html: icon('sort') }), this.sortLabel);
-    const tools = h('div', { class: 'coll-tools' }, tabs, this.sortBtn);
+    this.search = h('input', {type:'search', class:'collection-search', placeholder:'Search all 186 cards...', 'aria-label':'Search cards', oninput:()=>{this.query=this.search.value.trim().toLowerCase();this.renderGrid();}});
+    this.resultCount=h('span',{class:'collection-count','aria-live':'polite'});
+    const tools = h('div', { class: 'collection-tools' }, h('div',{class:'collection-search-row'},this.search,this.sortBtn,this.resultCount),tabs);
+    this.towerSelect=h('select',{'aria-label':'Tower troop',onchange:()=>ctx.setTower(this.towerSelect.value)});
+    for(const t of TOWER_CARDS)this.towerSelect.appendChild(h('option',{value:t.id,text:t.name}));
+    const towerTools=h('label',{class:'tower-picker'},h('span',{text:'Tower troop'}),this.towerSelect,h('span',{class:'tower-picker__note',text:'Separate from your 8-card deck'}));
 
     this.gridEl = h('div', { class: 'coll-grid', id: 'ui-coll-grid', role: 'tabpanel', 'aria-label': 'Card collection' });
     const thumbs = ctx.getThumbs();
@@ -86,7 +92,7 @@ export class DeckBuilder {
 
     this.el = h('section', { class: 'panel panel--deck', 'aria-labelledby': 'ui-deck-title' },
       head,
-      h('div', { class: 'deck-top' }, this.slotsEl, this.pickBar),
+      h('div', { class: 'deck-top' }, this.slotsEl, this.pickBar, towerTools),
       tools,
       this.scrollEl = h('div', { class: 'coll-scroll' }, this.gridEl),
       this.detailEl);
@@ -97,6 +103,7 @@ export class DeckBuilder {
   /** Called when the panel opens. */
   open() {
     this.pick = null;
+    this.towerSelect.value=this.ctx.getTower() || 'tower-princess';
     this.closeDetail(true);
     this.render();
     // Collection buttons are detached until first open, so boot's global art pass
@@ -138,7 +145,8 @@ export class DeckBuilder {
     }
     this.sortLabel.textContent = this.sort === 'cost-asc' ? 'Cost ↑' : 'Cost ↓';
     this.sortBtn.setAttribute('aria-label', this.sort === 'cost-asc' ? 'Sorted by cost, cheapest first' : 'Sorted by cost, most expensive first');
-    const visible = new Set(filterAndSort(CARDS, this.filter, this.sort).map((c) => c.id));
+    const visible = new Set(filterAndSort(CARDS, this.filter, this.sort).filter(c=>!this.query || (c.name+' '+c.rarity+' '+c.type).toLowerCase().includes(this.query)).map((c) => c.id));
+    this.resultCount.textContent=`${visible.size} / ${CARDS.length}`;
     const order = filterAndSort(CARDS, 'all', this.sort);
     const frag = document.createDocumentFragment();
     for (const card of order) {
