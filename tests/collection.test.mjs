@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CARDS, CARD_BY_ID, TOWER_CARDS, UNITS, DEFAULT_DECK, isValidDeck } from '../js/data/cards.js';
+import { CARDS, CARD_BY_ID, TOWER_CARDS, UNITS, DEFAULT_DECK, isValidDeck, normalizeDeck } from '../js/data/cards.js';
 import { COLLECTION_SOURCE } from '../js/data/collection-source.js';
 import { World } from '../js/sim/world.js';
 import { number } from '../js/data/collection.js';
@@ -9,7 +9,12 @@ import { CARD_ART } from '../js/data/royale-art.js';
 import { readFileSync } from 'node:fs';
 
 function world(){const w=new World();for(const e of w.entities)e.stunned=9999;return w;}
-function play(w,id,x=5,z=5){w.players[0].hand[0]=id;w.players[0].aether=10;assert.equal(w.playCard(0,0,x,z),true);}
+function play(w,id,x=5,z=5){
+  // Equip the test card before injecting it into the hand.
+  const family=CARD_BY_ID[id].family;
+  w.players[0].deck=normalizeDeck([id,...DEFAULT_DECK.filter(d=>CARD_BY_ID[d].family!==family)].slice(0,8));
+  w.players[0].hand[0]=id;w.players[0].aether=10;assert.equal(w.playCard(0,0,x,z),true);
+}
 function run(w,t){for(let i=0;i<Math.ceil(t*30);i++)w.step();}
 
 test('complete reference roster, portraits, filters and family-safe saved decks',()=>{
@@ -24,8 +29,8 @@ test('complete reference roster, portraits, filters and family-safe saved decks'
     assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
     if(c.unit){const hp=c.referenceStats?.[0]?.stats.Hitpoints;if(hp)assert.equal(UNITS[c.unit].hp,number(hp),c.name);}
   }
-  const deck=replaceInDeck([...DEFAULT_DECK],0,'knight-hero');
-  assert.ok(isValidDeck(deck));assert.equal(deck[0],'knight-hero');
+  const deck=replaceInDeck([...DEFAULT_DECK],1,'knight-hero');
+  assert.ok(isValidDeck(deck));assert.equal(deck[1],'knight-hero');
   assert.equal(isValidDeck(['warden','knight-hero',...DEFAULT_DECK.slice(2)]),false);
   assert.equal(isValidDeck(['cannoneer',...DEFAULT_DECK.slice(1)]),false);
 });

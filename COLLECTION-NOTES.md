@@ -1,8 +1,10 @@
 # Full collection update — 2026-11-17
 
-The collection now contains 123 regular cards, 45 Evolution selections, 18 Hero selections and four separately selected tower troops. The 8-card deck builder retains the original Desktop editing flow and saved IDs. Selecting a different form replaces the same family rather than allowing duplicate Knights, for example. The sandbox deck builder permits multiple Champions and more than two Evolutions.
+The collection contains 123 base cards, 45 Evolutions, 18 Heroes and four separately selected tower troops. Each eight-card deck holds one card per family. Slot 1 accepts Evolutions, slot 2 accepts Heroes and Champions, and the Wild slot accepts either kind. Regular cards fit anywhere. Older decks migrate when loaded. Extra special forms revert to their base card when available, and excess Champions are replaced by unused starter cards.
 
-Search and type/variant filters cover the entire collection. Hero and Champion abilities appear above the hand after deployment, charge elixir and enforce their use limits. Evolution cards show a cycle counter, then READY. Tower choice saves alongside the deck. Mirror and Spirit Empress show their current cost in the hand.
+The collection shows one card per family. Its filters find every family with the selected form. Dropping a card equips the form supported by its slot, and the Wild slot saves the player's Evo or Hero choice. Hero and Champion abilities appear above the hand after deployment. Each Evolution tracks its own cycle. Mirror and Spirit Empress show their current cost in the hand.
+
+Each deployment targets a whole tile. Skeleton Army, Bats and other swarms use card-specific offsets and deployment timing adapted from [RoyaleSim's replay measurements](https://github.com/RoyaleGym/RoyaleSim/blob/main/crates/royalesim/tests/fixtures/formations/measured.json). The preview and battle share the same formation and terrain limits.
 
 ## Data and art
 
@@ -20,7 +22,7 @@ The reference has **no Mirror Evolution stats or ability definition**. That sele
 
 ## Verification
 
-297 Node checks pass, including original regressions, every troop's navigation from eight deployment points, 40 randomized full matches, complete roster/art checks, Evolution cycling, all 26 Hero/Champion abilities, family replacement, mixed groups, Mirror/Clone/Graveyard/Earthquake and tower stats. Browser verification covers all 186 loaded portraits, collection filtering, replacing Knight with Knight Hero, selected Cannoneer HP, and ability controls.
+The Node suite covers original regressions, troop navigation from eight deployment points, 40 randomized full matches, roster and art checks, Evolution cycling, all 26 Hero/Champion abilities, legal deck edits, saved-deck migration, mixed groups, Mirror, Clone, Graveyard, Earthquake and tower stats.
 
 ## GitHub Pages
 

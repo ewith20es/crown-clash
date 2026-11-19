@@ -80,8 +80,12 @@ export class SettingsPanel {
 }
 
 const HOWTO = [
+  { icon: 'cards', tone: 'surge', title: 'Build with special slots',
+    text: 'Drag a card into Evolution, Hero / Champion, or Wild to equip its available form. Hold a collection card to drag on touchscreens. In Wild, use the switch when a card has both forms.' },
+  { icon: 'bolt', tone: 'gold', title: 'Evolve and activate abilities',
+    text: 'Play an Evolution card to fill its purple cycle markers. The ready deployment evolves. Heroes and Champions have an ability button with an elixir cost and limited uses.' },
   { icon: 'aether', tone: 'aether', title: 'Spend elixir',
-    text: 'Elixir refills over time. Drag a card onto your half of the arena to deploy it.' },
+    text: 'Elixir refills over time. Drag a card onto your half of the arena. The outlined tile shows where it will land.' },
   { icon: 'boot', tone: 'troop', title: 'Troops fight on their own',
     text: 'Units march down their lane, cross the bridges and attack whatever they meet.' },
   { icon: 'spire', tone: 'gold', title: 'Topple Princess Towers for crowns',

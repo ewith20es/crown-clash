@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { World } from '../js/sim/world.js';
 import { Rng } from '../js/sim/rng.js';
+import { cardFormation } from '../js/data/formations.js';
 import { ARENA, MATCH, SIM_DT, towerPosition, inRift } from '../js/config.js';
-import { UNITS, CARDS, CARD_BY_ID, DEFAULT_DECK, OPPONENTS } from '../js/data/cards.js';
+import { UNITS, CARDS, CARD_BY_ID, DEFAULT_DECK, OPPONENTS, normalizeDeck } from '../js/data/cards.js';
 
 // ───────────────────────────── helpers ─────────────────────────────
 
@@ -45,6 +46,7 @@ function dummy(w, type, team, x, z) {
 
 function giveCard(w, team, cardId) {
   const p = w.players[team];
+  p.deck = normalizeDeck([cardId, ...DEFAULT_DECK.filter(id => CARD_BY_ID[id].family !== CARD_BY_ID[cardId].family)].slice(0, 8));
   p.hand[0] = cardId;
   p.aether = MATCH.AETHER_MAX;
   return 0;
@@ -175,7 +177,7 @@ test('canPlay: aether rejection still resolves a legal point; clamping', () => {
   assert.equal(r.reason, 'aether');
   assert.equal(r.clamped, true);
   assert.equal(r.x, 3);
-  assert.ok(near(r.z, ARENA.RIFT_HALF + ARENA.EDGE_MARGIN));
+  assert.equal(r.z, Math.ceil(ARENA.RIFT_HALF + .5));
   assert.equal(w.playCard(0, 0, 3, 5), false);
 
   w.players[0].aether = 10;
@@ -224,7 +226,7 @@ test('canPlay: spells anywhere, deployAnywhere units anywhere outside the rift',
   assert.equal(s.clamped, false);
   assert.deepEqual([s.x, s.z], [-3, -12]);
   const far = w.canPlay(0, 0, -30, 40);
-  assert.deepEqual([far.x, far.z], [-ARENA.HALF_W, ARENA.HALF_L]);
+  assert.deepEqual([far.x, far.z], [1 - ARENA.HALF_W, ARENA.HALF_L - 1]);
 
   giveCard(w, 0, 'drillworm');
   const d = w.canPlay(0, 0, 2, -10);
@@ -269,16 +271,81 @@ test('playCard: multi-unit cards spawn their formation in deploy state', () => {
   }
   const ev = w.drainEvents();
   assert.equal(ev.filter((e) => e.type === 'spawn').length, 15);
-  // deploying units cannot move or attack
+  // Overlapping skeletons separate on contact during deployment, without marching or attacking.
   const before = mites.map((m) => [m.x, m.z]);
   run(w, 0.9);
   for (let i = 0; i < mites.length; i++) assert.equal(mites[i].state, 'deploy');
-  assert.ok(mites.every((m, i) => Math.hypot(m.x - before[i][0], m.z - before[i][1]) < 0.3));
+  assert.ok(mites.every((m, i) => Math.hypot(m.x - before[i][0], m.z - before[i][1]) <= 2 * m.radius));
+  assert.ok(mites.every(m => !m.attacks));
   run(w, 0.2);
   assert.ok(mites.every((m) => m.state !== 'deploy'));
 });
 
 // ───────────────────────────── every troop reaches a tower ─────────────────────────────
+
+test('deployment previews and committed card anchors occupy whole tiles on both sides', () => {
+  for (const team of [0, 1]) {
+    const sign = team === 0 ? 1 : -1;
+    for (const id of ['warden','mites','bats','sentry','drillworm','comet','royal-delivery']) {
+      for (const [x,z] of [[2.5,5.5],[5,8.5],[-5,-8.5],[0,.5],[-3,-3.5],[20,40]]) {
+        const w = new World();
+        w.towers[1-team].left.alive = false;
+        giveCard(w,team,id);
+        const r = w.canPlay(team,0,x,z*sign);
+        assert.ok(r.ok && Number.isInteger(r.x) && Number.isInteger(r.z), id);
+        assert.ok(Math.abs(r.x) + .5 <= ARENA.HALF_W && Math.abs(r.z) + .5 <= ARENA.HALF_L);
+        const positions = r.deployment.unit && w.deploymentPositions(r.deployment,team,r.x,r.z);
+        assert.ok(w.playCard(team,0,x,z*sign));
+        const events = w.drainEvents(), cast = events.find(e=>e.type==='cardPlayed');
+        assert.deepEqual([cast.x,cast.z],[r.x,r.z]);
+        if (!positions || UNITS[r.deployment.unit].deployAnywhere) continue;
+        assert.deepEqual(events.filter(e=>e.type==='spawn').map(e=>[e.entType,e.x,e.z]),
+          positions.map(m=>[m.unit,m.x,m.z]));
+      }
+    }
+  }
+});
+
+test('Bats form a staggered pentagon and Skeleton Army deploys all fifteen together', () => {
+  const bats = cardFormation(CARD_BY_ID.bats,0,-3);
+  assert.equal(bats.length,5);
+  const side = 2 * 1.405 * Math.sin(Math.PI/5);
+  for (const [i,bat] of bats.entries()) {
+    const next = bats[(i+1)%5];
+    assert.ok(near(Math.hypot(bat.x,bat.z),1.405) && near(Math.hypot(bat.x-next.x,bat.z-next.z),side));
+    assert.ok(near(bat.delay,i*.1));
+  }
+  const army = cardFormation(CARD_BY_ID.mites,0,-3);
+  assert.equal(army.length,15);
+  assert.ok(army.every(m=>m.delay===0));
+  assert.ok(near(Math.max(...army.map(m=>Math.hypot(m.x,m.z))),2.77));
+  for (const id of ['bats','mites','goblin-gang','royal-recruits','skeleton-army-evolution']) {
+    const base = cardFormation(CARD_BY_ID[id],0,-3);
+    const rotated = cardFormation(CARD_BY_ID[id],1,3);
+    const oppositeLane = cardFormation(CARD_BY_ID[id],0,3);
+    for (const [i,m] of base.entries()) {
+      assert.ok(near(m.x,-rotated[i].x) && near(m.z,-rotated[i].z),id);
+      assert.ok(near(m.x,-oppositeLane[i].x) && near(m.z,oppositeLane[i].z),id);
+    }
+  }
+});
+
+test('either Wall Breaker connects alone from either bridge after three Princess Tower shots', () => {
+  for (const team of [0,1]) for (const lane of [-1,1]) for (const survivor of [0,1]) {
+    const w = new World(), id = 'wall-breakers';
+    giveCard(w,team,id);
+    assert.ok(w.playCard(team,0,lane*ARENA.BRIDGE_X,team===0?2:-2));
+    const pair = w.entities.filter(e=>e.cardId===id);
+    w._kill(pair[1-survivor]);
+    const runner = pair[survivor];
+    const tower = w.towers[1-team][lane<0?'left':'right'];
+    const events = run(w,9);
+    assert.deepEqual(damageTo(events,runner.id,tower.type).map(e=>e.hp),[221,112,3]);
+    assert.equal(tower.maxHp-tower.hp,302);
+    assert.ok(events.some(e=>e.type==='impact' && e.sourceType===id && e.attackFx==='burst'));
+    assert.equal(runner.alive,false);
+  }
+});
 
 const TROOPS = CARDS.filter((c) => c.type === 'troop');
 const POINTS0 = [[-6, 4], [6, 4], [0, 5], [-8.6, 14.6], [8.6, 14.6], [0, 1.4]];

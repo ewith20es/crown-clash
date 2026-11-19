@@ -3,3 +3,4 @@ import './sim.test.mjs';
 import './ai.test.mjs';
 import './level11.test.mjs';
 import './collection.test.mjs';
+import './slots.test.mjs';

@@ -118,6 +118,8 @@ export class Battle {
       for (const id of deck) {
         const c = CARD_BY_ID[id];
         if (!c) continue;
+        if (c.baseId && CARD_BY_ID[c.baseId]?.unit) addType(CARD_BY_ID[c.baseId].unit);
+        for (const group of c.groups || []) addType(group.unit);
         if (c.unit) addType(c.unit);
         if (c.spell && c.spell.unit) addType(c.spell.unit);
       }
@@ -173,6 +175,7 @@ export class Battle {
       this.ui.flashCard(handIndex, 'denied');
       this.audio.play('error');
       if (res.reason === 'aether') this.ui.hint('Not enough elixir yet');
+      if (res.reason === 'space') this.ui.hint('No free deployment tile');
       return false;
     }
     const ok = this.world.playCard(PLAYER, handIndex, x, z);
@@ -241,7 +244,14 @@ export class Battle {
       this.handSig = sig;
       this.ui.setHand(p.hand, p.next);
     }
-    this.ui.setHandCosts(p.hand.map(id=>world.cardCost(PLAYER,CARD_BY_ID[id])),p.hand.map(id=>{const c=CARD_BY_ID[id];return (p.cycles[id]||0)>=c.cycles?'READY':`${p.cycles[id]||0}/${c.cycles}`;}));
+    const costs = p.hand.map(id => world.cardCost(PLAYER, CARD_BY_ID[id]));
+    const cycles = p.hand.map(id => {
+      const card = CARD_BY_ID[id];
+      if (card.variant !== 'evolution') return null;
+      const played = p.cycles[id] || 0;
+      return played >= card.cycles ? 'READY' : `${played}/${card.cycles}`;
+    });
+    this.ui.setHandCosts(costs, cycles);
     if (force) this.ui.setStars(world.players[PLAYER].stars, world.players[ENEMY].stars);
   }
 

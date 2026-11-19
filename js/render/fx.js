@@ -75,7 +75,7 @@ const COL = {
   rockDark: rgb(0x6c5f50),
   stone: rgb(0xd6c29a),
   metal: rgb(0x8c8c96),
-  podGreen: rgb(0x6fbf4a),
+  oak: rgb(0xbb854b),
 };
 
 // ───────────────────────────── shaders ─────────────────────────────
@@ -288,6 +288,39 @@ function instanced(geo, mat, cap) {
   return mesh;
 }
 
+function barrelMesh() {
+  const profile = [[0,-.86],[.6,-.86],[.65,-.77],[.7,-.56],[.76,-.55],[.78,-.4],
+    [.73,-.38],[.78,0],[.73,.38],[.78,.4],[.76,.55],[.7,.56],[.65,.77],[.6,.86],[0,.86]];
+  const geo = new THREE.LatheGeometry(profile.map(([r,y]) => new THREE.Vector2(r,y)), 14).toNonIndexed();
+  const colors = [], pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i += 3) {
+    const y = Math.abs((pos.getY(i) + pos.getY(i+1) + pos.getY(i+2)) / 3);
+    const stave = Math.floor(i / (6 * (profile.length - 1)));
+    const hoop = y > .39 && y < .56;
+    const color = new THREE.Color(y > .85 ? 0xd09a5d : hoop ? 0x424e65 : stave % 2 ? 0xe7a650 : 0xba7536);
+    for (let j = 0; j < 3; j++) colors.push(color.r, color.g, color.b);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+  const material = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.68, flatShading:true });
+  material.onBeforeCompile = shader => {
+    shader.vertexShader = 'varying vec3 vStave;\n' + shader.vertexShader.replace('#include <begin_vertex>',
+      '#include <begin_vertex>\n vStave = position;');
+    shader.fragmentShader = 'varying vec3 vStave;\n' + shader.fragmentShader.replace('#include <color_fragment>', `
+      #include <color_fragment>
+      if (abs(vStave.y) > .855) {
+        float seam = abs(fract(vStave.x / .30 + .5) - .5);
+        diffuseColor.rgb *= mix(.48, 1., smoothstep(.025, .1, seam));
+      }
+    `);
+  };
+  const mesh = new THREE.InstancedMesh(geo, material, 32);
+  mesh.name = 'airborne-goblin-barrels';
+  mesh.count = 0;
+  mesh.frustumCulled = false;
+  mesh.castShadow = true;
+  return mesh;
+}
+
 function upload(attr, n) {
   attr.clearUpdateRanges();
   attr.addUpdateRange(0, Math.max(1, n) * attr.itemSize);
@@ -364,7 +397,8 @@ export class Fx {
     this.iceMesh.renderOrder = 4;
     this.iceN = 0;
 
-    this.root.add(this.decalMix, this.decalAdd, this.smokeMesh, this.rockMesh, this.gemMesh, this.iceMesh,
+    this.barrels = barrelMesh();
+    this.root.add(this.decalMix, this.decalAdd, this.smokeMesh, this.rockMesh, this.gemMesh, this.iceMesh, this.barrels,
       this.segMesh, this.glowMesh);
 
     this.time = 0;
@@ -814,10 +848,12 @@ export class Fx {
         this.decal(this.dT, x, z, 0.8, 0.9, 3, COL.scorch, 0.45, D_SPLAT, 0.1, 0, Math.random(), 0, 1);
         break;
       case 'seedpod':
-        this.burst(x, 0.4, z, 18, 3.5, 3, 0.7, 0.16, COL.heal, 5, 2);
-        this.puff(x, 0.1, z, 8, 0.8, 0.8, 0.9, 0.45, COL.dust, 0.5);
-        this.shockwave(x, z, 1.4, COL.heal, 0.45, 0.12);
-        for (let k = 0; k < 6; k++) this.solid(this.gT, x, 0.4, z, rand(-2, 2), rand(2, 4), rand(-2, 2), 0.06, 0.14, 0.06, COL.podGreen, 0.8, 10, 10);
+        for (const landingX of ev.cardId === 'goblin-barrel-evolution' ? [x,-x] : [x]) {
+          this.puff(landingX, .14, z, 9, .85, 1.2, 1, .6, COL.dust, .6);
+          this.shockwave(landingX, z, 1.4, tg, .35, .1);
+          for (let k = 0; k < 7; k++) this.solid(this.rT, landingX, .45, z,
+            rand(-3,3), rand(2,4), rand(-3,3), .08, .23, .06, COL.oak, .75, 10, 10);
+        }
         break;
       default: break;
     }
@@ -836,6 +872,7 @@ export class Fx {
   // ───────────────────────────── per-frame mirror of the world ─────────────────────────────
 
   sync(world, alpha, time) {
+    this.barrels.count = 0;
     this.hN = 0;
     this.dF.n = 0; this.sF.n = 0; this.rF.n = 0; this.gF.n = 0;
     this.iceN = 0;
@@ -1046,7 +1083,7 @@ export class Fx {
       const ro = list[i];
       const z = ro.pz + (ro.z - ro.pz) * alpha;
       const x = ro.px !== undefined ? ro.px + (ro.x - ro.px) * alpha : ro.x;
-      const rad = Math.min(1.1, (ro.halfWidth || 1.5) * 0.55);
+      const rad = Math.min(1.35, (ro.halfWidth || 1.5) * 0.73);
       const roll = (ro.traveled || 0) / rad * (ro.dirZ || 1);
       this.frameSolid(this.rF, x, rad * 0.9, z, roll, 0, 0, ro.halfWidth * 0.95, rad, rad, COL.rock);
       this.frameSolid(this.rF, x + ro.halfWidth * 0.5, rad * 0.6, z, roll * 1.3, 1, 0, rad * 0.6, rad * 0.6, rad * 0.6, COL.rockDark);
@@ -1098,20 +1135,43 @@ export class Fx {
             const sx = p.x - 3, sy = 16, sz = p.z + 7 * s;
             const t = prog * prog;
             const x = sx + (p.x - sx) * t, y = sy + (0.4 - sy) * t, z = sz + (p.z - sz) * t;
-            this.frameSolid(this.rF, x, y, z, time * 5, time * 3, 0, 0.55, 0.5, 0.55, COL.rockDark);
-            this.head(x, y, z, 1.4, COL.fire);
-            this.head(x, y, z, 0.7, COL.fireCore);
+            const icy = p.cardId?.startsWith('giant-snowball');
+            const color = icy ? COL.ice : COL.fire;
+            this.frameSolid(this.rF, x, y, z, time * 5, time * 3, 0, .96, .9, .96, icy ? COL.ice : COL.rockDark);
+            this.head(x, y, z, 2.35, color);
+            this.head(x, y, z, 1.1, icy ? COL.white : COL.fireCore);
             for (let k = 0; k < 3; k++) {
               this.glow(x + rand(-0.3, 0.3), y + rand(-0.3, 0.3), z + rand(-0.3, 0.3), rand(-0.5, 0.5), rand(0, 1), rand(-0.5, 0.5),
-                0.45, 0.6, 0.1, Math.random() < 0.5 ? COL.fire : COL.ember, 1);
+                0.45, 0.9, 0.12, icy ? COL.ice : Math.random() < 0.5 ? COL.fire : COL.ember, 1);
             }
             if (Math.random() < 0.6) this.smoke(x, y, z, 0, 0.5, 0, 1.2, 0.5, 1.2, COL.smoke, 0.45, 0, 0.8);
           } else if (p.kind === 'seedpod') {
             const c = towerPosition(p.team, 'citadel');
-            const x = c.x + (p.x - c.x) * prog, z = c.z + (p.z - c.z) * prog;
-            const y = 5 * (1 - prog) + 0.3 + 7 * prog * (1 - prog);
-            this.frameSolid(this.gF, x, y, z, time * 4, time * 2, 0, 0.3, 0.42, 0.3, COL.podGreen);
-            if (Math.random() < 0.5) this.glow(x, y, z, 0, 0, 0, 0.4, 0.15, 0.03, COL.heal, 1);
+            const z = c.z + (p.z - c.z) * prog;
+            const y = 4.5 * (1 - prog) + .8 + 17 * prog * (1 - prog);
+            const count = p.spell?.evolution === 'goblin-barrel' ? 2 : 1;
+            for (let j = 0; j < count; j++) {
+              const targetX = j === 0 ? p.x : -p.x;
+              const x = c.x + (targetX - c.x) * prog;
+              if (this.barrels.count < this.barrels.instanceMatrix.count) {
+                _p.set(x, y, z);
+                _q.setFromEuler(_e.set(prog * 8, Math.atan2(targetX - c.x, p.z - c.z), .48));
+                _m.compose(_p, _q, _s.setScalar(1.22));
+                this.barrels.setMatrixAt(this.barrels.count++, _m);
+              }
+              this.head(x, y, z, 2.25, tg, .34);
+              this.glow(x, y, z, 0, .3, 0, .34, .47, .07, tg, .8);
+            }
+            this.barrels.instanceMatrix.needsUpdate = true;
+          } else if (p.cardId === 'shardstorm') {
+            for (let j = 0; j < 7; j++) {
+              const angle = j * 2.4, spread = Math.sqrt(j / 7) * r;
+              const x = p.x + Math.cos(angle) * spread;
+              const z = p.z + Math.sin(angle) * spread + (1 - prog) * 3 * teamSign(p.team);
+              const y = .4 + (1 - prog) * 8;
+              this.seg(this.sF, x, y, z, x, y + 1.5, z + .6 * teamSign(p.team), .055, COL.warm, 1);
+              this.frameSolid(this.gF, x, y, z, .36 * teamSign(p.team), 0, 0, .17, .22, .17, COL.metal);
+            }
           } else if (p.kind === 'skyfork' && Math.random() < dt * 6) {
             this.bolt(this.sT, p.x + rand(-r, r), 12, p.z + rand(-r, r), p.x + rand(-r, r), 9, p.z + rand(-r, r), 4, 0.6, 0.03, COL.violet, 0.8, 0.12);
           } else if (p.kind === 'stasis' || p.kind === 'shardstorm') {
@@ -1318,6 +1378,7 @@ export class Fx {
   }
 
   reset() {
+    this.barrels.count = 0;
     this.glowP.clear();
     this.smokeP.clear();
     this.hN = 0;
@@ -1331,7 +1392,7 @@ export class Fx {
 
   dispose() {
     this.stage.scene.remove(this.root);
-    for (const m of [this.glowMesh, this.smokeMesh, this.decalAdd, this.decalMix, this.segMesh, this.rockMesh, this.gemMesh, this.iceMesh]) {
+    for (const m of [this.glowMesh, this.smokeMesh, this.decalAdd, this.decalMix, this.segMesh, this.rockMesh, this.gemMesh, this.iceMesh, this.barrels]) {
       m.geometry.dispose();
       m.material.dispose();
     }

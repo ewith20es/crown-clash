@@ -35,7 +35,26 @@ export class ArenaView {
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(8, stage.renderer.capabilities.getMaxAnisotropy());
     this.texture = texture;
-    const surface = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: texture, roughness: 1 }));
+    const ground = new THREE.MeshStandardMaterial({ map: texture, roughness: 1 });
+    // Retile the grass in world space. Paths, bridges and the illustrated arena border use the artwork.
+    ground.onBeforeCompile = shader => {
+      shader.vertexShader = 'varying vec2 vField;\n' + shader.vertexShader.replace('#include <begin_vertex>',
+        '#include <begin_vertex>\n vField = position.xz;');
+      shader.fragmentShader = 'varying vec2 vField;\n' + shader.fragmentShader.replace('#include <map_fragment>', `
+        #include <map_fragment>
+        vec3 art = diffuseColor.rgb;
+        float grass = smoothstep(.04, .13, art.g - art.r) * smoothstep(.08, .2, art.r - art.b);
+        vec2 edge = abs(vField);
+        grass *= (1.0 - smoothstep(9.55, 9.9, edge.x)) * (1.0 - smoothstep(14.6, 15.0, edge.y));
+        grass *= smoothstep(1.05, 1.22, edge.y);
+        vec2 tile = floor(vField + .5);
+        float checker = mod(tile.x + tile.y, 2.);
+        vec3 lawn = mix(vec3(.285, .48, .045), vec3(.346, .55, .058), checker);
+        vec3 grain = art - textureLod(map, vMapUv, 2.5).rgb;
+        diffuseColor.rgb = mix(art, lawn + .7 * grain, grass);
+      `);
+    };
+    const surface = new THREE.Mesh(geo, ground);
     surface.receiveShadow = true;
     this.root.add(surface);
     for (const x of [-11.65, 11.65]) for (let z = -15.5; z <= 15.5; z += 1.5) addBox(.65, .45, 1.38, x, .12, z, 0x7c8995);

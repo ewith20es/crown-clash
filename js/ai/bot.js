@@ -8,7 +8,7 @@
 //             with spells and drops deploy-anywhere cards on the enemy backline
 //   economy   never sits at full aether for long; keeps a reserve against the opponent's push
 import { CARD_BY_ID } from '../data/cards.js';
-import { ARENA, SIM_DT, teamSign, towerPosition, enemyOf } from '../config.js';
+import { ARENA, SIM_DT, teamSign, towerPosition, enemyOf, snap, clamp } from '../config.js';
 import { CARD_INFO, UNIT_TRAITS } from './cardinfo.js';
 import { PROFILES } from './profiles.js';
 
@@ -236,16 +236,20 @@ export class Bot {
     const spell = info.spell;
     if (!spell) return null;
     const r = spell.radius || spell.halfWidth || 2;
-    const cands = lane ? lane.units : w.entities.filter((e) => e.team === this.foe && e.kind !== 'tower');
     let best = null, bestVal = 0;
     const lead = this.p.lead * (spell.delay || 0);
-    for (const c of cands) {
-      const cx = c.x + ((c.x - c.px) / SIM_DT) * lead;
-      const cz = c.z + ((c.z - c.pz) / SIM_DT) * lead;
+    const enemies = w.entities.filter(e => e.alive && e.team === this.foe).map(e => {
+      const dt = e.state === 'move' ? lead / SIM_DT : 0;
+      return {e, x: e.x + (e.x - e.px) * dt, z: e.z + (e.z - e.pz) * dt};
+    });
+    for (const c of enemies) {
+      if (c.e.kind === 'tower' || (lane && !lane.units.includes(c.e))) continue;
+      const cx = clamp(snap(c.x), 1 - ARENA.HALF_W, ARENA.HALF_W - 1);
+      const cz = clamp(snap(c.z), 1 - ARENA.HALF_L, ARENA.HALF_L - 1);
       let val = 0, n = 0;
-      for (const e of w.entities) {
-        if (e.team !== this.foe) continue;
-        const dx = e.x - cx, dz = e.z - cz;
+      for (const target of enemies) {
+        const e = target.e;
+        const dx = target.x - cx, dz = target.z - cz;
         if (Math.hypot(dx, dz) - e.radius > r) continue;
         const T = UNIT_TRAITS[e.type];
         if (e.kind === 'tower') { val += this.towerValue(info, e); continue; }

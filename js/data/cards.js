@@ -481,27 +481,89 @@ export const TOWER_CARDS = deepFreeze(fullCollection.towers);
 
 export const CARD_BY_ID = Object.freeze(Object.fromEntries([...CARDS,...TOWER_CARDS].map((c) => [c.id, c])));
 
+export const COLLECTION_CARDS = Object.freeze(CARDS.filter(card => card.variant === 'base'));
+const families = Object.create(null);
+for (const card of CARDS) {
+  (families[card.family] ??= {})[card.variant] = card;
+}
+export const FAMILY_FORMS = deepFreeze(families);
+export const DECK_SLOTS = Object.freeze(['evolution', 'hero', 'wild', 'regular', 'regular', 'regular', 'regular', 'regular']);
+export const SLOT_LABELS = Object.freeze({ evolution: 'Evolution', hero: 'Hero / Champion', wild: 'Wild', regular: 'Regular' });
+
+/** Wild keeps an incoming special form. A new dual-form family starts as an Evolution. */
+export function formForSlot(id, slot, wildForm) {
+  const card = CARD_BY_ID[id], target = DECK_SLOTS[slot];
+  const forms = FAMILY_FORMS[card?.family];
+  if (!forms || !target) return null;
+  if (forms.base.rarity === 'champion' && target !== 'hero' && target !== 'wild') return null;
+  if (target === 'wild') {
+    const preference = wildForm || card.variant;
+    const selected = preference !== 'base' && forms[preference];
+    return (selected || forms.evolution || forms.hero || forms.base).id;
+  }
+  return (forms[target] || forms.base).id;
+}
+
 export const DEFAULT_DECK = Object.freeze([
   'warden', 'scouts', 'colossus', 'longshot', 'breaker', 'mites', 'comet', 'shardstorm',
-]);
+].map((id, slot) => formForSlot(id, slot)));
 
 /** AI opponents: a name, a flavour title and an 8-card deck. */
 export const OPPONENTS = deepFreeze([
-  { id: 'royal', name: 'Royal Captain', title: 'Giant Beatdown', deck: ['colossus', 'wizard', 'scouts', 'goblins', 'minions', 'comet', 'shardstorm', 'valkyrie'] },
+  { id: 'royal', name: 'Royal Captain', title: 'Giant Beatdown', deck: ['wizard-evolution', 'golden-knight', 'colossus', 'scouts', 'minions', 'comet', 'shardstorm', 'valkyrie'] },
   { id: 'swarm', name: 'Goblin Chief', title: 'Swarm Rush', deck: ['goblins', 'speargoblins', 'bats', 'barbarians', 'minionhorde', 'warden', 'comet', 'shardstorm'] },
-  { id: 'cannon', name: 'Cannon King', title: 'Royal Siege', deck: ['royalgiant', 'longshot', 'valkyrie', 'skeletons', 'minions', 'breaker', 'comet', 'shardstorm'] },
+  { id: 'cannon', name: 'Cannon King', title: 'Royal Siege', deck: ['royal-giant-evolution', 'musketeer-hero', 'valkyrie', 'skeletons', 'minions', 'breaker', 'comet', 'shardstorm'] },
   { id: 'brakka', name: 'Forgemaster Brakka', title: 'Stonewall', deck: ['colossus', 'longshot', 'scouts', 'mites', 'breaker', 'comet', 'warden', 'shardstorm'] },
   { id: 'nimbus', name: 'Captain Nimbus', title: 'Skyfleet', deck: ['thunderhead', 'stormray', 'zephyrs', 'longshot', 'warden', 'shardstorm', 'sparkwisp', 'stasis'] },
   { id: 'tock', name: 'Professor Tock', title: 'Clockwork Rush', deck: ['ramhorn', 'gyrolancer', 'mites', 'gearwright', 'prismguards', 'jolt', 'nest', 'rockslide'] },
   { id: 'verda', name: 'Keeper Verda', title: 'Wild Bloom', deck: ['podstrider', 'bloomtender', 'slingtoad', 'frostsnail', 'breaker', 'seedpod', 'blight', 'glimmers'] },
   { id: 'pell', name: 'Delver Pell', title: 'Deep Delve', deck: ['drillworm', 'titan', 'coilcrab', 'sunlens', 'shardlynx', 'maelstrom', 'aetherwell', 'skyfork'] },
   { id: 'orrin', name: 'Marshal Orrin', title: 'Siegeworks', deck: ['bombard', 'sentry', 'longshot', 'warden', 'frostsnail', 'comet', 'overclock', 'mites'] },
-]);
+].map(opponent => ({ ...opponent, deck: opponent.deck.map((id, slot) => formForSlot(id, slot)) })));
 
-export function isValidDeck(deck) {
+export function specialKind(card) {
+  if (card?.variant === 'evolution') return 'evolution';
+  if (card?.variant === 'hero' || card?.rarity === 'champion') return 'hero';
+  return 'regular';
+}
+
+export function cardFitsSlot(id, slot) {
+  const card = CARD_BY_ID[id], kind = specialKind(card), target = DECK_SLOTS[slot];
+  return !!card && card.type !== 'tower' && !!target && (kind === 'regular' || target === 'wild' || target === kind);
+}
+
+function hasDeckCards(deck) {
   return Array.isArray(deck) && deck.length === MATCH.DECK_SIZE
     && new Set(deck.map(id => CARD_BY_ID[id]?.family)).size === MATCH.DECK_SIZE
     && deck.every((id) => CARD_BY_ID[id] && CARD_BY_ID[id].type !== 'tower');
+}
+
+export function isValidDeck(deck) {
+  return hasDeckCards(deck) && deck.every(cardFitsSlot);
+}
+
+/** Migrate pre-slot saves without losing ordinary cards or resetting player progress. */
+export function normalizeDeck(deck) {
+  if (!hasDeckCards(deck)) return [...DEFAULT_DECK];
+  if (isValidDeck(deck)) return deck.map((id, slot) => formForSlot(id, slot));
+  const next = new Array(8).fill(null), regular = [];
+  for (const id of deck) {
+    const kind = specialKind(CARD_BY_ID[id]);
+    if (kind === 'regular') { regular.push(id); continue; }
+    const slot = [kind === 'evolution' ? 0 : 1, 2].find(i => next[i] === null);
+    if (slot !== undefined) next[slot] = id;
+    else if (CARD_BY_ID[id].baseId) regular.push(CARD_BY_ID[id].baseId);
+  }
+  for (const id of DEFAULT_DECK) {
+    if (regular.length + next.filter(Boolean).length >= 8) break;
+    if (![...regular, ...next].some(other => other && CARD_BY_ID[other].family === CARD_BY_ID[id].family)) regular.push(CARD_BY_ID[id].baseId || id);
+  }
+  // Keep regular cards in their original positions where possible.
+  for (let i = 0; i < 8; i++) {
+    const index = regular.indexOf(deck[i]);
+    if (next[i] === null && index >= 0) next[i] = regular.splice(index, 1)[0];
+  }
+  return next.map((id, slot) => formForSlot(id || regular.shift(), slot));
 }
 
 export function averageCost(deck) {

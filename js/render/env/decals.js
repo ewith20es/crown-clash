@@ -68,6 +68,8 @@ void main() {
   float fill = inside * (uFill * (0.13 + 0.07 * pulse) + 0.05);
   float glow = (1.0 - smoothstep(0.0, 0.35, abs(r - uRadius))) * 0.18;
   float a = clamp(max(ring * (0.75 + 0.25 * pulse), max(waveRing * inside, fill)) + glow, 0.0, 1.0);
+  float tileEdge = max(abs(p.x), abs(p.y));
+  a = max(a, 0.85 * (1.0 - smoothstep(0.025, 0.025 + aa, abs(tileEdge - 0.47))));
   if (a < 0.004) discard;
   vec3 col = uColor * (1.0 + ring * 0.8);
   gl_FragColor = vec4(col, a);

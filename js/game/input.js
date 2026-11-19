@@ -1,6 +1,6 @@
 // Card input: drag a card from the hand onto the island, or tap a card and then tap/drag on
 // the island. Shows a translucent preview of what will be deployed and where it is legal.
-import { UNITS, CARD_BY_ID } from '../data/cards.js';
+import { UNITS } from '../data/cards.js';
 import { UNIT_VISUAL_SCALE } from '../config.js';
 import { createGhostView } from '../render/models/index.js';
 import { PLAYER } from './battle.js';
@@ -195,21 +195,24 @@ export class CardInput {
     const g = world && this.stage.screenToGround(clientX, clientY);
     if (!g) { this.hidePreview(); return; }
     const res = world.canPlay(PLAYER, index, g.x, g.z);
-    const card = res.card;
+    const card = res.deployment;
     if (!card) { this.hidePreview(); return; }
-    const affordable = res.reason !== 'aether';
     this.previewOn = true;
     if (card.type === 'spell') {
       this.setGhost(null);
       this.arena.showDeployZone(null);
     } else {
-      const ghost = this.ghostFor(card.id);
+      const ghost = this.ghostFor(card);
       this.setGhost(ghost);
       ghost.position.set(res.x, 0, res.z);
+      world.deploymentPositions(card, PLAYER, res.x, res.z).forEach((member, i) => {
+        const pos = ghost.children[i]?.position;
+        if (pos) pos.set(member.x - res.x, pos.y, member.z - res.z);
+      });
       const anywhere = UNITS[card.unit].deployAnywhere;
       this.arena.showDeployZone(anywhere ? null : { rects: world.deployRects(PLAYER) });
     }
-    this.arena.setMarker({ x: res.x, z: res.z, radius: markerRadius(card), ok: affordable, kind: card.type });
+    this.arena.setMarker({ x: res.x, z: res.z, radius: markerRadius(card), ok: res.ok, kind: card.type });
   }
 
   hidePreview() {
@@ -220,15 +223,16 @@ export class CardInput {
     this.arena.setMarker(null);
   }
 
-  ghostFor(cardId) {
-    let g = this.ghosts.get(cardId);
+  ghostFor(card) {
+    const key = card.dualForm ? card.id + '/' + card.unit : card.id;
+    let g = this.ghosts.get(key);
     if (!g) {
-      g = createGhostView(cardId, PLAYER);
+      g = createGhostView(card, PLAYER);
       // match the in-battle troop size; offsets stay unscaled so the preview matches spawn spots
-      if (CARD_BY_ID[cardId]?.type === 'troop') {
+      if (card.type === 'troop') {
         for (const child of g.children) child.scale.multiplyScalar(UNIT_VISUAL_SCALE);
       }
-      this.ghosts.set(cardId, g);
+      this.ghosts.set(key, g);
     }
     return g;
   }

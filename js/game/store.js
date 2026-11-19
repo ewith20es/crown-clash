@@ -1,6 +1,6 @@
 // Persistent player state (localStorage). Everything is validated on load so a stale or
 // hand-edited save can never break the game.
-import { DEFAULT_DECK, isValidDeck } from '../data/cards.js';
+import { DEFAULT_DECK, normalizeDeck } from '../data/cards.js';
 
 const KEY = 'crown-clash-desktop.v1';
 const QUALITIES = ['low', 'medium', 'high'];
@@ -32,7 +32,7 @@ export function loadState() {
     const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (raw && typeof raw === 'object') {
       if (['tower-princess','cannoneer','dagger-duchess','royal-chef'].includes(raw.towerTroop)) state.towerTroop=raw.towerTroop;
-      if (isValidDeck(raw.deck)) state.deck = [...raw.deck];
+      state.deck = normalizeDeck(raw.deck);
       if (Number.isFinite(raw.trophies)) state.trophies = Math.max(0, Math.round(raw.trophies));
       if (DIFFICULTIES.includes(raw.difficulty)) state.difficulty = raw.difficulty;
       if (raw.settings && typeof raw.settings === 'object') {

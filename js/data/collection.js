@@ -38,6 +38,8 @@ function unitFrom(r, name, group, hidden, makeUnit, kind = 'unit') {
     model:model[r.slug] || 'warden', sourceStats:s,
   });
   u.range = Math.max(u.range, u.radius + .15);
+  // In this arena a lone runner reaches an undefended Princess Tower on its last 3 HP.
+  if (r.slug === 'wall-breakers') Object.assign(u, { speed: 2.15, windup: 0, attackFx: 'burst' });
   if (s['Crown Tower damage'] && dmg) u.towerDmgMult=number(s['Crown Tower damage'])/dmg;
   if (s['Stun duration'] || s['Freeze duration']) u.onHit={stun:number(s['Stun duration'] || s['Freeze duration'])};
   if (s['Charge damage']) u.charge={dist:3,speedMult:2,dmgMult:number(s['Charge damage'])/dmg};

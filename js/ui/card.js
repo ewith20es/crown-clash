@@ -20,12 +20,13 @@ export function createCard(cardId, size = 'coll', thumbs) {
   const fit = len > 13 ? ' card--xlong' : len > 10 ? ' card--long' : '';
   el.className = `card card--${size} card--${card.type} rarity--${card.rarity}${fit}`;
   el.dataset.card = card.id;
+  el.dataset.variant = card.variant === 'base' && card.rarity === 'champion' ? 'champion' : card.variant;
   const count = card.count > 1 && SHOW_COUNT.has(size) ? `<span class="card__count">×${card.count}</span>` : '';
   el.innerHTML = '<div class="card__frame">'
     + `<div class="card__art"><span class="card__initial">${escapeHtml(cardInitial(card))}</span>`
     + '<img class="card__img" alt="" draggable="false" decoding="async"></div>'
     + '<div class="card__shine"></div>'
-    + (card.variant && card.variant !== 'base' ? `<span class="card__variant card__variant--${card.variant}">${card.variant === 'evolution' ? 'EVO' : 'HERO'}</span>` : '')
+    + (card.variant && card.variant !== 'base' ? `<span class="card__variant card__variant--${card.variant}">${card.variant === 'evolution' ? 'EVO' : 'HERO'}</span>` : card.rarity === 'champion' ? '<span class="card__variant card__variant--champion">CHAMPION</span>' : '')
     + `${count}<div class="card__name">${escapeHtml(card.name)}</div>`
     + '</div>'
     + `<div class="card__cost" aria-hidden="true"><span>${card.cost}</span></div>`;

@@ -4,7 +4,8 @@ import {
   SIM_DT, ARENA, MATCH, teamSign, enemyOf, towerPosition, deployRects as configDeployRects,
   pointInRects, clampToRects, onBridge, inRift, formationOffsets, clamp, snap,
 } from '../config.js';
-import { UNITS, CARD_BY_ID, DEFAULT_DECK, isValidDeck } from '../data/cards.js';
+import { UNITS, CARD_BY_ID, normalizeDeck, specialKind, cardFitsSlot } from '../data/cards.js';
+import { cardFormation } from '../data/formations.js';
 import { abilityList, activateAbility, updateExtra, beforeAttack, afterHit, extraDeath, damageMultiplier } from './collection-mechanics.js';
 import { Rng } from './rng.js';
 import { RH, laneHalf, bridgeX, inBand, onLane, sideOf, segmentCrossesRift, angleDiff, wrapAngle } from './nav.js';
@@ -83,7 +84,7 @@ export class World {
 
     const decks = Array.isArray(o.decks) ? o.decks : [];
     this.players = [0, 1].map((team) => {
-      const deck = isValidDeck(decks[team]) ? decks[team].slice() : DEFAULT_DECK.slice();
+      const deck = normalizeDeck(decks[team]);
       const order = this.rng.shuffle(deck.slice());
       return {
         team, aether: MATCH.AETHER_START, deck, cycles: {}, lastCard: null,
@@ -139,13 +140,26 @@ export class World {
     const card = (id && CARD_BY_ID[id]) || null;
     res.card = card;
     if (card) {
-      this._resolveDeployPoint(team, card.family === 'mirror' && player.lastCard ? CARD_BY_ID[player.lastCard] : card, rx, rz, res);
+      let deployment = card;
+      if (card.family === 'mirror' && player.lastCard) {
+        const previous = CARD_BY_ID[player.lastCard];
+        deployment = CARD_BY_ID[previous.baseId || previous.id];
+      } else if (card.variant === 'evolution' && (player.cycles[id] || 0) < card.cycles) {
+        deployment = CARD_BY_ID[card.baseId];
+      }
+      if (deployment.dualForm) {
+        const form = deployment.dualForm;
+        deployment = {...deployment, unit: this.cardCost(team, card) >= 6 ? form.unit : form.ground};
+      }
+      res.deployment = deployment;
+      this._resolveDeployPoint(team, deployment, rx, rz, res);
     } else {
       res.x = clamp(snap(rx), -HW, HW);
       res.z = clamp(snap(rz), -HL, HL);
     }
     if (this.phase === 'ended') res.reason = 'ended';
     else if (!card) res.reason = 'card';
+    else if (specialKind(card) !== 'regular' && !cardFitsSlot(id, player.deck.indexOf(id))) res.reason = 'slot';
     else if (card.family === 'mirror' && !player.lastCard) res.reason = 'mirror';
     else if (player.aether + EPS < this.cardCost(team, card)) res.reason = 'aether';
     res.ok = res.reason === null;
@@ -155,18 +169,16 @@ export class World {
   playCard(team, handIndex, x, z) {
     const res = this.canPlay(team, handIndex, x, z);
     if (!res.ok) return false;
-    let card = res.card;
+    const selected = res.card;
+    const card = res.deployment;
     const p = this.players[team];
-    const cost = this.cardCost(team, card);
+    const cost = this.cardCost(team, selected);
     p.aether = Math.max(0, p.aether - cost);
-    if (card.family === 'mirror') card = {...CARD_BY_ID[p.lastCard], cost};
-    else p.lastCard = card.id;
-    if (card.variant === 'evolution') {
-      const count = p.cycles[card.id] || 0;
-      p.cycles[card.id] = count >= card.cycles ? 0 : count + 1;
-      if (count < card.cycles) card = CARD_BY_ID[card.baseId];
+    if (selected.family !== 'mirror' && selected.rarity !== 'champion') p.lastCard = selected.id;
+    if (selected.variant === 'evolution') {
+      const count = p.cycles[selected.id] || 0;
+      p.cycles[selected.id] = count >= selected.cycles ? 0 : count + 1;
     }
-    if (card.dualForm) card = {...card, unit: cost >= 6 ? card.dualForm.unit : card.dualForm.ground};
     const played = p.hand[handIndex];
     p.hand[handIndex] = p.next;
     p.next = p.queue.shift();
@@ -184,7 +196,6 @@ export class World {
       this._emit({ type: 'spellCast', team, cardId: card.id, kind: s.kind, x: res.x, z: res.z, radius, delay });
       return true;
     }
-    for (const group of card.groups || []) this._spawnGroup(group.unit, team, res.x + .6, res.z + 1, group.count, 1, card.id, false);
     const def = UNITS[card.unit];
     if (def.deployAnywhere) {
       const from = towerPosition(team, 'citadel');
@@ -197,7 +208,9 @@ export class World {
       this._emit({ type: 'tunnel', team, cardId: card.id, fromX: from.x, fromZ: from.z, toX: res.x, toZ: res.z, duration });
       return true;
     }
-    this._spawnGroup(card.unit, team, res.x, res.z, card.count, def.deployTime, card.id, false);
+    for (const member of this.deploymentPositions(card, team, res.x, res.z)) {
+      this._spawnAt(member.unit, team, member.x, member.z, UNITS[member.unit].deployTime + member.delay, card.id);
+    }
     return true;
   }
 
@@ -349,45 +362,57 @@ export class World {
   }
 
   _resolveDeployPoint(team, card, rx, rz, res) {
-    const sx = snap(rx);
-    const sz = snap(rz);
-    let x = sx;
-    let z = sz;
-    if (card.type === 'spell') {
-      if(card.spell.ownSide){const c=clampToRects(x,z,this.deployRects(team),ARENA.EDGE_MARGIN);x=c.x;z=c.z;}
-      x = clamp(x, -HW, HW);
-      z = clamp(z, -HL, HL);
-    } else {
-      const def = UNITS[card.unit];
-      const r = def.radius;
-      const m = ARENA.EDGE_MARGIN;
-      if (def.deployAnywhere) {
-        for (let k = 0; k < 5; k++) {
-          x = clamp(x, -HW + m, HW - m);
-          z = clamp(z, -HL + m, HL - m);
-          if (inRift(x, z)) z = (z > 0 ? 1 : z < 0 ? -1 : teamSign(team)) * RH;
-          if (!this._pushOut(x, z, r + 0.1)) break;
-          x = this._pt.x; z = this._pt.z;
+    const def = card.type === 'spell' ? null : UNITS[card.unit];
+    const rects = (def ? !def.deployAnywhere : card.spell.ownSide) ? this.deployRects(team) : null;
+    const margin = Math.max(.5, def?.radius || 0);
+    const maxX = Math.floor(HW - margin), maxZ = Math.floor(HL - margin);
+    const sx = snap(rx), sz = snap(rz);
+    res.x = clamp(sx, -maxX, maxX);
+    res.z = clamp(sz, -maxZ, maxZ);
+    const legal = (x, z) => {
+      if (rects && !pointInRects(x, z, rects, .5)) return false;
+      if (!def) return true;
+      if (inRift(x, z) || (def.kind === 'building' && Math.abs(z) < RH + def.radius + .1)) return false;
+      return !this._pushOut(x, z, def.radius + .1);
+    };
+    if (!legal(res.x, res.z)) {
+      // Search tile centres, so pushing out of a tower or pocket never leaves a fractional anchor.
+      let best = Infinity;
+      const tx = clamp(rx, -HW, HW), tz = clamp(rz, -HL, HL);
+      const sign = teamSign(team);
+      for (let row = -maxZ; row <= maxZ; row++) {
+        const z = row * sign || 0;
+        for (let col = -maxX; col <= maxX; col++) {
+          const x = col * (Math.sign(tx) || sign) || 0;
+          const distance = (x - tx) ** 2 + (z - tz) ** 2;
+          if (distance < best && legal(x, z)) { best = distance; res.x = x; res.z = z; }
         }
-        x = clamp(x, -HW + m, HW - m);
-        z = clamp(z, -HL + m, HL - m);
-        if (inRift(x, z)) z = (z > 0 ? 1 : z < 0 ? -1 : teamSign(team)) * RH;
-      } else {
-        const rects = this.deployRects(team);
-        const isB = def.kind === 'building';
-        for (let k = 0; k < 5; k++) {
-          if (!pointInRects(x, z, rects, m)) { const c = clampToRects(x, z, rects, m); x = c.x; z = c.z; }
-          // buildings keep their whole footprint out of the rift so they never block a bridge
-          if (isB && Math.abs(z) < RH + r + 0.1) z = (z >= 0 ? 1 : -1) * (RH + r + 0.1);
-          if (!this._pushOut(x, z, r + 0.1)) break;
-          x = this._pt.x; z = this._pt.z;
-        }
-        if (!pointInRects(x, z, rects, m)) { const c = clampToRects(x, z, rects, m); x = c.x; z = c.z; }
       }
+      if (!Number.isFinite(best)) res.reason = 'space';
     }
-    res.x = x;
-    res.z = z;
-    res.clamped = Math.abs(x - sx) > 1e-6 || Math.abs(z - sz) > 1e-6;
+    res.clamped = res.x !== sx || res.z !== sz;
+  }
+
+  deploymentPositions(card, team, x, z) {
+    const members = cardFormation(card, team, x);
+    const rects = members.length > 1 ? this.deployRects(team) : null;
+    for (const member of members) {
+      const def = UNITS[member.unit];
+      let px = x + member.x, pz = z + member.z;
+      if (rects && !def.flying && !def.deployAnywhere && !pointInRects(px, pz, rects)) {
+        ({x: px, z: pz} = clampToRects(px, pz, rects));
+      }
+      const legal = this._legalize(px, pz, def.radius, def.flying, team);
+      member.x = legal.x;
+      member.z = legal.z;
+    }
+    return members;
+  }
+
+  _spawnAt(type, team, x, z, deployTime, cardId) {
+    const e = this._create(type, team, x, z, deployTime, cardId, null);
+    this._emit({ type: 'spawn', id: e.id, entType: type, kind: e.kind, team, x: e.x, z: e.z });
+    return e;
   }
 
   _spawnGroup(type, team, x, z, count, deployTime, cardId) {
@@ -398,9 +423,7 @@ export class World {
     const out = [];
     for (let i = 0; i < offs.length; i++) {
       const p = this._legalize(x + offs[i].x * sg, z + offs[i].z * sg, def.radius, def.flying, team);
-      const e = this._create(type, team, p.x, p.z, deployTime, cardId, null);
-      this._emit({ type: 'spawn', id: e.id, entType: type, kind: e.kind, team, x: e.x, z: e.z });
-      out.push(e);
+      out.push(this._spawnAt(type, team, p.x, p.z, deployTime, cardId));
     }
     return out;
   }

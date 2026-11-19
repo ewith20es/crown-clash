@@ -8,12 +8,16 @@ const enemies=(w,e,r)=>w.entities.filter(v=>v.alive&&v.team!==e.team&&distance(e
 function cast(w,e,spell,x=e.x,z=e.z){const p={kind:spell.kind,team:e.team,x,z,cardId:e.cardId,spell,wave:0,timeLeft:0};if(!resolveSpell(w,p))w.pending.push(p);}
 function burst(w,e,damage,radius,extra={}){cast(w,e,{kind:'comet',damage,crownDamage:extra.crownDamage??damage,radius,...extra});}
 function spawn(w,e,type,count=1){return w._spawnGroup(type,e.team,e.x,e.z,count,.4,e.cardId);}
+function overheal(entity, amount, cap) {
+  entity.hp = Math.min(cap, entity.hp + amount);
+  entity.maxHp = Math.max(entity.maxHp, entity.hp);
+}
 
 export function abilityList(w,team){
   const groups=new Set();
   return w.entities.filter(e=>{const key=e.cardId+':'+e.bornAt;if(!e.alive||e.team!==team||!e.def.ability||e.state==='deploy'||groups.has(key))return false;groups.add(key);return true;}).map(e=>{
     const a=e.def.ability,charges=n(a['Ability charges'],1),used=e.abilityUsed||0,cooldown=Math.max(0,(e.abilityAt||0)-w.time);
-    return {id:e.id,name:e.def.name,cost:a.cost,remaining:charges-used,cooldown,ready:used<charges&&cooldown===0&&w.players[team].aether>=a.cost};
+    return {id:e.id,cardId:e.cardId,name:e.def.name,cost:a.cost,remaining:Math.max(0,charges-used),cooldown,ready:w.phase!=='ended'&&e.frozen<=0&&e.stunned<=0&&used<charges&&cooldown===0&&w.players[team].aether>=a.cost};
   });
 }
 
@@ -89,7 +93,7 @@ export function beforeAttack(w,e,t,damage){
   if(u.strongHit&&distance(e,t)<=u.strongHit.range)damage=u.strongHit.damage;
   if(u.thirdHit&&e.attacks%3===0){damage=u.thirdHit;w._knockback(t,t.x-e.x,t.z-e.z,1.5,e.team);}
   if(u.uppercut&&e.attacks%u.uppercut.every===0)w._knockback(t,t.x-e.x,t.z-e.z,u.uppercut.distance,e.team);
-  if(u.leech)e.hp=Math.min(u.leech.max,e.hp+u.leech.amount);
+  if(u.leech)overheal(e,u.leech.amount,u.leech.max);
   if(u.rageOnHit){e.hastePct=u.rageOnHit.boost;e.hasteT=u.rageOnHit.duration;}
   if(u.replicate&&w.entities.filter(v=>v.alive&&v.team===e.team&&v.type===e.type).length<u.replicate)spawn(w,e,e.type);
   if(u.hitSpawn&&w.time>=(e.hitSpawnAt||0)){w._spawnGroup(u.hitSpawn.unit,e.team,t.x,t.z,u.hitSpawn.count,.5,e.cardId);e.hitSpawnAt=w.time+(u.hitSpawn.cooldown||0);}
@@ -106,7 +110,7 @@ export function beforeAttack(w,e,t,damage){
 export function afterHit(w,def,team,v,sourceType,fromX,fromZ){
   const source=w.entities.find(e=>e.alive&&e.team===team&&e.type===sourceType&&Math.hypot(e.x-fromX,e.z-fromZ)<1.5);
   if(def.curse&&v.kind==='unit'){v.cursedBy=team;v.curseUnit=def.curse;v.curseUntil=w.time+5;}
-  if(!v.alive&&source&&def.healKill){const h=def.healKill;source.hp=Math.min(h.max,source.hp+(v.maxHp<990?h.small:v.maxHp<1990?h.medium:h.large));}
+  if(!v.alive&&source&&def.healKill){const h=def.healKill;overheal(source,v.maxHp<990?h.small:v.maxHp<1990?h.medium:h.large,h.max);}
   if(v.def.reflect&&source&&distance(source,v)<=v.def.reflect.range){const r=v.def.reflect;w._damage(source,source.kind==='tower'?r.crown:r.dmg,v.team,v.type);w._stun(source,r.stun);}
   if(source&&v.reflectProjectiles&&v.protectUntil>w.time&&def.projectile)w._damage(source,def.dmg,v.team,v.type);
 }
@@ -115,7 +119,7 @@ export function extraDeath(w,e){
   if(e.def.deathElixir)w.players[1-e.team].aether=Math.min(10,w.players[1-e.team].aether+e.def.deathElixir);
   if(e.def.deathSpell)w.pending.push({kind:e.def.deathSpell.kind,team:e.team,x:e.x,z:e.z,cardId:e.cardId,spell:e.def.deathSpell,wave:0,timeLeft:0});
   if(e.curseUntil>=w.time&&e.curseUnit)w._spawnGroup(e.curseUnit,e.cursedBy,e.x,e.z,1,.5,null);
-  for(const v of w.entities){if(v.def.ability?.family==='skeleton-king')v.souls=(v.souls||0)+1;if(v.team===e.team&&v.def.skeletonHeal&&e.def.name.includes('Skeleton'))v.hp=Math.min(1451,v.hp+v.def.skeletonHeal);}
+  for(const v of w.entities){if(v.def.ability?.family==='skeleton-king')v.souls=(v.souls||0)+1;if(v.alive&&v.team===e.team&&v.def.skeletonHeal&&e.def.name.includes('Skeleton'))overheal(v,v.def.skeletonHeal,1451);}
 }
 
 export function damageMultiplier(w,e){

@@ -3,7 +3,8 @@
 // model falls back to kit.placeholderView().
 
 import * as THREE from 'three';
-import { ARENA, formationOffsets } from '../../config.js';
+import { ARENA } from '../../config.js';
+import { cardFormation } from '../../data/formations.js';
 import { UNITS, CARD_BY_ID } from '../../data/cards.js';
 import { UNIT_BUILDERS } from './registry.js';
 import { placeholderView, material, IDLE_STATE } from './kit.js';
@@ -16,6 +17,46 @@ import './royale-extra.js';
 
 export { renderCardThumbs } from './thumbs.js';
 
+// Shared geometry keeps the special-form marker inexpensive, including on flying units
+// and buildings that reuse a base rig. Ghost conversion also visits these meshes.
+let specialRing, specialShard;
+const specialMaterials = new Map();
+function markSpecial(view, type) {
+  const unit = UNITS[type];
+  const kind = unit?.variant || (unit?.ability ? 'hero' : null);
+  if (!kind) return view;
+  if (!specialRing) {
+    specialRing = new THREE.TorusGeometry(1, .025, 5, 32);
+    specialRing.rotateX(Math.PI / 2);
+    specialShard = new THREE.OctahedronGeometry(.08);
+  }
+  if (!specialMaterials.has(kind)) {
+    const color = kind === 'evolution' ? 0xd879ff : 0xffd16a;
+    specialMaterials.set(kind, new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+  }
+  const aura = new THREE.Group(), mat = specialMaterials.get(kind);
+  const radius = Math.max(.35, unit.radius * 1.15);
+  const ring = new THREE.Mesh(specialRing, mat);
+  ring.scale.setScalar(radius);
+  ring.position.y = .08;
+  aura.add(ring);
+  for (let i = 0; i < 3; i++) {
+    const shard = new THREE.Mesh(specialShard, mat);
+    const angle = i * Math.PI * 2 / 3;
+    shard.position.set(Math.cos(angle) * radius, .19, Math.sin(angle) * radius);
+    shard.scale.y = 1.6;
+    aura.add(shard);
+  }
+  view.root.add(aura);
+  const update = view.update.bind(view);
+  view.update = (dt, state = IDLE_STATE) => {
+    update(dt, state);
+    aura.rotation.y = state.time * .65;
+    aura.position.y = Math.sin(state.time * 3) * .025;
+  };
+  return view;
+}
+
 /** EntityView for any UNITS type (placeholder when the type has no model). Never throws. */
 export function createEntityView(type, team) {
   const t = team === 1 ? 1 : 0;
@@ -24,7 +65,7 @@ export function createEntityView(type, team) {
   if (b) {
     try {
       const v = b(t);
-      if (v && v.root && typeof v.update === 'function') return v;
+      if (v && v.root && typeof v.update === 'function') return markSpecial(v, type);
     } catch (e) {
       console.warn(`[models] ${type} failed to build; using a placeholder`, e);
     }
@@ -42,24 +83,21 @@ function ghostRoot(v, team) {
 }
 
 /** Translucent, static deploy preview of a card (an empty Group for spells or unknown ids). */
-export function createGhostView(cardId, team) {
+export function createGhostView(cardOrId, team) {
   const group = new THREE.Group();
-  const card = CARD_BY_ID[cardId];
+  const card = typeof cardOrId === 'string' ? CARD_BY_ID[cardOrId] : cardOrId;
   if (!card || card.type === 'spell' || !card.unit) return group;
   const t = team === 1 ? 1 : 0;
-  const sgn = t === 1 ? -1 : 1;
-  const u = UNITS[card.unit];
-  const offsets = card.type === 'building' ? [{ x: 0, z: 0 }] : formationOffsets(card.count || 1);
-  for (const o of offsets) {
+  for (const o of cardFormation(card, t, 0)) {
     try {
-      const v = createEntityView(card.unit, t);
+      const v = createEntityView(o.unit, t);
       v.update(0, IDLE_STATE);
       const root = ghostRoot(v, t);
-      root.position.set(o.x * sgn, u && u.flying ? ARENA.FLY_HEIGHT : 0, o.z * sgn);
+      root.position.set(o.x, UNITS[o.unit].flying ? ARENA.FLY_HEIGHT : 0, o.z);
       root.rotation.y = t === 0 ? Math.PI : 0;
       group.add(root);
     } catch (e) {
-      console.warn(`[models] ghost for ${cardId} failed`, e);
+      console.warn(`[models] ghost for ${card.id} failed`, e);
     }
   }
   return group;

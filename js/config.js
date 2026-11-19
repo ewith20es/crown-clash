@@ -58,7 +58,7 @@ export const MATCH = Object.freeze({
   OVERTIME_MULT: 2,
   HAND_SIZE: 4,
   DECK_SIZE: 8,
-  DEPLOY_SNAP: 0.5,     // deploy points snap to this grid
+  DEPLOY_SNAP: 1,       // one deployment anchor per tile
   DEPLOY_TIME: 1.0,     // seconds before a deployed troop/building becomes active
   STARS_TO_WIN: 3,
 });
@@ -81,7 +81,7 @@ export const TEAMS = Object.freeze([
 
 export function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-export function snap(v, step = MATCH.DEPLOY_SNAP) { return Math.round(v / step) * step; }
+export function snap(v, step = MATCH.DEPLOY_SNAP) { return Math.sign(v) * Math.round(Math.abs(v) / step) * step || 0; }
 
 /** True when a ground unit at this x can stand inside the rift band, i.e. it is on a bridge. */
 export function onBridge(x, pad = 0) {

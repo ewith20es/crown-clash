@@ -1,7 +1,7 @@
 // DOM-free helpers for the UI: formatting, deck editing, sorting and state normalisation.
 // Kept free of `document` so they can be exercised from Node.
 import { MATCH } from '../config.js';
-import { CARDS, CARD_BY_ID, DEFAULT_DECK, isValidDeck } from '../data/cards.js';
+import { COLLECTION_CARDS, CARD_BY_ID, FAMILY_FORMS, DEFAULT_DECK, isValidDeck, formForSlot } from '../data/cards.js';
 
 export const TYPE_LABEL = Object.freeze({ troop: 'Troop', spell: 'Spell', building: 'Building', tower: 'Tower troop' });
 export const RARITY_LABEL = Object.freeze({ common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', champion: 'Champion' });
@@ -43,8 +43,15 @@ export function cardInitial(card) {
 }
 
 /** Collection order for the deck builder. `filter`: all | troop | spell | building; `sort`: cost-asc | cost-desc. */
-export function filterAndSort(cards, filter = 'all', sort = 'cost-asc') {
-  const list = (cards || CARDS).filter((c) => filter === 'all' || c.type === filter || c.variant === filter || c.rarity === filter);
+export function filterAndSort(cards = COLLECTION_CARDS, filter = 'all', sort = 'cost-asc', query = '') {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const list = cards.filter(c => {
+    if (c.variant !== 'base') return false;
+    const forms = FAMILY_FORMS[c.family];
+    if (filter !== 'all' && filter !== c.type && filter !== c.rarity && !forms[filter]) return false;
+    const terms = [c.name, c.type, c.rarity, ...Object.keys(forms)].join(' ').toLowerCase();
+    return words.every(word => terms.includes(word));
+  });
   const dir = sort === 'cost-desc' ? -1 : 1;
   const index = new Map(list.map((c, i) => [c.id, i]));
   list.sort((a, b) => (a.cost - b.cost) * dir
@@ -58,24 +65,23 @@ export function filterAndSort(cards, filter = 'all', sort = 'cost-asc') {
  * swap, so the deck always stays 8 distinct cards. Returns the new deck, or null for no-ops and
  * anything that would not be a valid deck.
  */
-export function replaceInDeck(deck, slot, cardId) {
+export function replaceInDeck(deck, slot, cardId, wildForm) {
   if (!Array.isArray(deck) || !CARD_BY_ID[cardId]) return null;
   if (!Number.isInteger(slot) || slot < 0 || slot >= deck.length) return null;
   const cur = deck.findIndex(id => CARD_BY_ID[id]?.family === CARD_BY_ID[cardId].family);
-  if (deck[slot] === cardId) return null;
+  const source = cur < 0 ? cardId : deck[cur];
+  const incoming = formForSlot(source, slot, wildForm);
+  if (!incoming || deck[slot] === incoming) return null;
   const next = deck.slice();
-  if (cur >= 0) next[cur] = next[slot];
-  next[slot] = cardId;
+  if (cur >= 0 && cur !== slot) next[cur] = formForSlot(deck[slot], cur);
+  next[slot] = incoming;
   return isValidDeck(next) ? next : null;
 }
 
 export function swapSlots(deck, a, b) {
   if (!Array.isArray(deck) || a === b) return null;
   if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0 || a >= deck.length || b >= deck.length) return null;
-  const next = deck.slice();
-  next[a] = deck[b];
-  next[b] = deck[a];
-  return isValidDeck(next) ? next : null;
+  return replaceInDeck(deck, b, deck[a]);
 }
 
 export function normalizeSettings(s, base) {

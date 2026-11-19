@@ -6,6 +6,7 @@ import { CARD_BY_ID, averageCost, isValidDeck } from '../data/cards.js';
 import { h, retrigger } from './dom.js';
 import { icon, EMBLEM } from './icons.js';
 import { createCard, applyArtAll } from './card.js';
+import { cardArtUrl } from '../data/royale-art.js';
 import { DeckBuilder } from './deckbuilder.js';
 import { SettingsPanel, HowToPanel } from './panels.js';
 import {
@@ -154,7 +155,7 @@ export class UI {
     const peek = h('button', {
       class: 'deck-peek', type: 'button', 'aria-label': 'Your battle deck: tap to edit',
       onclick: (ev) => this.openPanel('deck', ev),
-    }, this.peekCards);
+    }, h('div',{class:'deck-peek__heading'},h('b',{text:'BATTLE DECK'}),h('span',{text:'Tap to edit'})), this.peekCards);
 
     this.peekAvg = h('span', { text: '0.0' });
     const deckBtn = h('button', {
@@ -176,13 +177,21 @@ export class UI {
     this.elMenu = h('div', { class: 'scr scr-menu', id: 'ui-menu' },
       h('img', { class: 'royal-hero royal-hero--left', src: 'assets/chr/knight.png', alt: '', draggable: 'false' }),
       h('img', { class: 'royal-hero royal-hero--right', src: 'assets/chr/giant.png', alt: '', draggable: 'false' }),
-      h('div', { class: 'menu-top' }, trophy, h('div', { class: 'menu-top__btns' }, howBtn, setBtn)),
+      h('div', { class: 'menu-top' },
+        h('div',{class:'player-badge'},h('span',{class:'player-badge__shield',text:'11'}),h('div',null,h('b',{text:'Royal Challenger'}),h('small',{text:'CROWN CLASH'}))),
+        trophy, h('div', { class: 'menu-top__btns' }, howBtn, setBtn)),
       logo,
-      h('div', { class: 'menu-fill' }),
+      h('div', { class: 'menu-fill' },
+        h('div',{class:'arena-plaque'},h('span',{html:icon('trophy')}),h('div',null,h('b',{text:'Royal Arena'}),h('small',{text:'1v1 · Classic Battle'})))),
       h('div', { class: 'menu-bottom' },
         peek,
         h('div', { class: 'menu-diff' }, h('span', { class: 'menu-diff__label', text: 'Rival' }), this.diffSeg),
-        h('div', { class: 'menu-actions' }, deckBtn, this.battleBtn)));
+        h('div', { class: 'menu-actions' }, deckBtn, this.battleBtn)),
+      h('nav',{class:'royal-nav','aria-label':'Game navigation'},
+        h('button',{type:'button',onclick:ev=>this.openPanel('deck',ev)},h('span',{html:icon('cards')}),h('b',{text:'Cards'})),
+        h('button',{type:'button',class:'is-current','aria-current':'page',onclick:()=>this._onPlay()},h('span',{html:icon('swords')}),h('b',{text:'Battle'})),
+        h('button',{type:'button',onclick:ev=>this.openPanel('howto',ev)},h('span',{html:icon('help')}),h('b',{text:'Training'})),
+        h('button',{type:'button',onclick:ev=>this.openPanel('settings',ev)},h('span',{html:icon('gear')}),h('b',{text:'Settings'}))));
   }
 
   _starRow(cls) {
@@ -287,9 +296,9 @@ export class UI {
     this.abilitySignature=signature;
     this.abilityBar.replaceChildren(...abilities.map(a=>h('button',{
       class:'btn btn--gold btn--xs ability-button',type:'button',disabled:!a.ready,
-      text:`${a.name}: ${a.remaining<=0?'Used':a.cooldown>0?Math.ceil(a.cooldown)+'s':a.cost+' elixir'}`,
       'aria-label':`Activate ${a.name} ability`,onclick:()=>this._emit('ability',a.id),
-    })));
+    },h('img',{src:cardArtUrl(a.cardId),alt:'',class:'ability-portrait'}),
+      h('span',{class:'ability-copy'},h('b',{text:a.name.replace(' Hero','')}),h('small',{text:a.remaining<=0?'Used this deployment':a.cooldown>0?`Ready in ${Math.ceil(a.cooldown)}s`:`${a.cost} elixir · ${a.remaining} use${a.remaining===1?'':'s'}`})))));
   }
 
   _buildResult() {
@@ -566,7 +575,7 @@ export class UI {
 
   closePanel(keepCover) {
     if (!this.panelName) return;
-    if (this.panelName === 'deck') { this.deckBuilder.closeDetail(true); this.deckBuilder.setPick(null); }
+    if (this.panelName === 'deck') { this.deckBuilder.drag.cancel(); this.deckBuilder.closeDetail(true); this.deckBuilder.setPick(null); }
     this.panelName = null;
     this.elPanels.classList.remove('is-open');
     this.elPanels.setAttribute('aria-hidden', 'true');
@@ -665,11 +674,23 @@ export class UI {
   }
 
   setHandCosts(costs, cycles) {
-    for (let i=0;i<this.slots.length;i++) {
-      const slot=this.slots[i];if(!slot.cardEl)continue;
-      if(slot.cost!==costs[i]){slot.cost=costs[i];slot.cardEl.querySelector('.card__cost span').textContent=costs[i];this._applyAfford(slot,false);}
-      const badge=slot.cardEl.querySelector('.card__variant--evolution');
-      if(badge)badge.textContent=cycles[i];
+    for (let i = 0; i < this.slots.length; i++) {
+      const slot = this.slots[i];
+      if (!slot.cardEl || (slot.cost === costs[i] && slot.cycle === cycles[i])) continue;
+      if (slot.cost !== costs[i]) {
+        slot.cost = costs[i];
+        slot.cardEl.querySelector('.card__cost span').textContent = slot.cost;
+        this._applyAfford(slot, false);
+      }
+      slot.cycle = cycles[i];
+      let label = `Card ${i + 1}: ${CARD_BY_ID[slot.id].name}, ${slot.cost} elixir`;
+      if (slot.cycle) {
+        const ready = slot.cycle === 'READY';
+        slot.cardEl.querySelector('.card__variant--evolution').textContent = ready ? '◆ EVOLVED' : `◇ ${slot.cycle}`;
+        slot.cardEl.classList.toggle('is-evo-ready', ready);
+        label += ready ? ', evolution ready' : `, ${slot.cycle} evolution cycles`;
+      }
+      slot.btn.setAttribute('aria-label', label);
     }
   }
 
@@ -682,6 +703,7 @@ export class UI {
       const id = CARD_BY_ID[arr[i]] ? arr[i] : null;
       if (id === slot.id) continue;
       slot.id = id;
+      slot.cycle = null;
       if (slot.cardEl) slot.cardEl.remove();
       slot.cardEl = null;
       slot.poor = null;

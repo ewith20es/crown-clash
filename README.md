@@ -8,12 +8,14 @@ Requires Node.js and an internet connection for the existing Three.js CDN depend
 
 Double-click **Play Crown Clash.cmd**, or run `npm start` from this folder and open the printed local URL. ES modules require HTTP; opening index.html directly does not work.
 
-Pick eight different cards in **Deck**. Select a collection card, choose **Add to deck**, then select the slot to replace. The deck, tower troop, difficulty, settings and record save locally. Only one form of the same card can occupy the deck. Tap a card and then your side of the arena, or drag a card to deploy. Keys 1–4 select cards; Esc cancels. Spells target either side. Destroying a Princess Tower opens its lane's forward deployment pocket. The King Tower awards three crowns.
+Pick eight of the 123 cards in **Deck**. Drag from the collection into a highlighted slot, or drag two deck cards over each other to swap. On a touchscreen, hold a collection card to lift it. Slot 1 equips an available Evolution, slot 2 equips a Hero or Champion, and slot 3 is Wild. When a Wild card has both forms, use the **Evo / Hero** switch. The deck, Wild choice, tower troop, settings and record save locally.
+
+Tap a card and then a tile, or drag it into place. The outlined square marks the deployment tile and the preview shows each swarm member's starting position. Keys 1–4 select cards and Esc cancels. An Evolution's hand badge counts regular plays until the next deployment evolves. Deploy a Hero or Champion to reveal its ability button above the hand. Destroying a Princess Tower opens its lane's forward deployment pocket. The King Tower awards three crowns.
 
 ## What's included
 
 - Desktop's physics, bridge navigation, collisions, mass/pushing, AI, abilities, card cycling, elixir and match rules.
-- Desktop's menu, eight-card deck builder, card details, filters, cost sorting, difficulty, settings and results.
+- A royal arena lobby with a battle deck preview, eight-card deck builder, card details, filters, cost sorting, difficulty, settings and results.
 - **186 deck cards: 123 regular cards (including 8 Champions), 45 Evolutions and 18 Heroes**, plus **4 tower troops** selected separately. Search by name and filter Evolutions, Heroes or Champions.
 - Level 11 health, shields, attack damage and special damage, including spells, spawned units, Princess Towers and King Towers. The deck builder displays the same values used in battle. See [the sourced stat snapshot](LEVEL11-STATS.md).
 - The starter deck is Knight, Archers, Giant, Musketeer, Mini P.E.K.K.A, Skeleton Army, Fireball and Arrows. Stable internal Desktop IDs preserve saved decks.
@@ -33,6 +35,6 @@ Bundled Crown Clash media retains `assets/LICENSE`. This content is not affiliat
 
 ## Validation
 
-Run `npm test` for 297 simulation, AI, collection, portrait and ability checks. Debug URLs support `?autoplay&speed=8&opp=cannon&seed=77`, `?autostart`, `?gallery`, and `?quality=low`.
+Run `npm test` for simulation, AI, collection, portrait, ability and special-slot checks. Debug URLs support `?autoplay&speed=8&opp=cannon&seed=77`, `?autostart`, `?gallery`, and `?quality=low`.
 
 See `HANDOFF.md` for validation results and remaining limits.
