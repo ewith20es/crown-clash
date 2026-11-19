@@ -640,7 +640,7 @@
 .seg {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--segments, 3), minmax(0, 1fr));
   padding: 4px;
   border-radius: var(--r-m);
   background: linear-gradient(180deg, rgba(4, 7, 24, .88), rgba(14, 22, 60, .88));
@@ -652,7 +652,7 @@
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 8px) / 3);
+  width: calc((100% - 8px) / var(--segments, 3));
   border-radius: 10px;
   background: linear-gradient(180deg, #8fd0ff 0%, #3a8cf5 50%, #2463d0 100%);
   box-shadow: inset 0 2px 0 rgba(255, 255, 255, .5), inset 0 -2px 0 rgba(0, 0, 0, .25), 0 2px 0 rgba(0, 0, 0, .4);
@@ -662,6 +662,8 @@
 
 .seg--diff[data-value="easy"] .seg__thumb { background: linear-gradient(180deg, #a6f5c4 0%, #35c47a 50%, #1f9157 100%); }
 .seg--diff[data-value="hard"] .seg__thumb { background: linear-gradient(180deg, #ffc0a6 0%, #ff6a44 50%, #d23a20 100%); }
+.seg--diff[data-value="expert"] .seg__thumb { background: linear-gradient(#c68df4, #8643bd 55%, #68299f); }
+.seg--diff[data-value="master"] .seg__thumb { background: linear-gradient(#f8cc69, #b37717 55%, #955c0f); }
 
 .seg__btn {
   position: relative;

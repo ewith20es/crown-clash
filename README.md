@@ -12,6 +12,8 @@ Pick eight of the 123 cards in **Deck**. Drag from the collection into a highlig
 
 Tap a card and then a tile, or drag it into place. The outlined square marks the deployment tile and the preview shows each swarm member's starting position. Keys 1–4 select cards and Esc cancels. An Evolution's hand badge counts regular plays until the next deployment evolves. Deploy a Hero or Champion to reveal its ability button above the hand. Destroying a Princess Tower opens its lane's forward deployment pocket. The King Tower awards three crowns.
 
+Choose **Easy**, **Normal**, **Hard**, **Expert** or **Master** under **Rival** before battle. Hard and above can rush the opposite bridge when you spend heavily in one lane. Expert saves elixir when a Princess Tower can handle a lone attacker and sends tanks ahead of surviving ranged defenders. Master also looks for spells that hit a defender and tower together and can combine two spells to finish a tower. Every difficulty uses the same card costs, tower stats and elixir regeneration.
+
 ## What's included
 
 - Desktop's physics, bridge navigation, collisions, mass/pushing, AI, abilities, card cycling, elixir and match rules.

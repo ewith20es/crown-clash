@@ -1,10 +1,10 @@
 // Persistent player state (localStorage). Everything is validated on load so a stale or
 // hand-edited save can never break the game.
 import { DEFAULT_DECK, normalizeDeck } from '../data/cards.js';
+import { DIFFICULTIES } from '../ai/profiles.js';
 
 const KEY = 'crown-clash-desktop.v1';
 const QUALITIES = ['low', 'medium', 'high'];
-const DIFFICULTIES = ['easy', 'normal', 'hard'];
 
 /** Pick a sensible graphics preset for this device the first time the game runs. */
 export function defaultQuality() {

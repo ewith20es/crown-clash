@@ -1,7 +1,7 @@
 // Difficulty profiles for the opponent AI. All times are seconds, all aether amounts are in
 // aether. Ranges are [min, max] and are sampled with the bot's own seeded generator.
 
-export const PROFILES = Object.freeze({
+const standard = {
   easy: Object.freeze({
     reaction: Object.freeze([2.0, 3.0]),   // delay before a new enemy unit is noticed
     think: Object.freeze([0.5, 0.85]),     // decision cadence
@@ -9,8 +9,8 @@ export const PROFILES = Object.freeze({
     urgentGap: 1,                          // gap multiplier while a tower is being hit
     horizon: 2.0,                          // reacts to units this many seconds from its bank
     defendAt: 1.0,                         // lane deficit that triggers a defensive play
-    pushAt: 9.4,                           // aether at which it starts a push by itself
-    supportAt: 6.5,                        // aether at which it reinforces a push in progress
+    pushAt: 9.4,                           // elixir at which it starts a push by itself
+    supportAt: 6.5,                        // elixir at which it reinforces a push in progress
     leakAt: 9.9,                           // aether at which it must spend
     reserveK: 0,                           // share of the incoming threat kept back when attacking
     lead: 0,                               // how well spells lead moving targets (0..1)
@@ -55,8 +55,8 @@ export const PROFILES = Object.freeze({
     urgentGap: 0.55,
     horizon: 3.4,
     defendAt: 0.4,
-    pushAt: 8.0,
-    supportAt: 5.0,
+    pushAt: 8,
+    supportAt: 5,
     leakAt: 9.4,
     reserveK: 0.8,
     lead: 1,
@@ -71,4 +71,31 @@ export const PROFILES = Object.freeze({
     aggression: 1.1,
     defendChance: 1,
   }),
+};
+
+const expert = Object.freeze({
+  ...standard.hard,
+  reaction: Object.freeze([.23, .42]),
+  think: Object.freeze([.15, .22]),
+  gap: Object.freeze([.65, .95]),
+  horizon: 3.3, defendAt: .75, pushAt: 8.8, supportAt: 4,
+  punishAt: 5,             // minimum elixir to pressure an opponent who just overspent
+  counterpush: true,        // send a frontliner ahead of surviving ranged defenders
+  towerCover: true,         // save elixir when the Princess Tower can finish a lone attacker
 });
+
+export const PROFILES = Object.freeze({
+  ...standard,
+  expert,
+  master: Object.freeze({
+    ...expert,
+    reaction: Object.freeze([.14, .28]),
+    think: Object.freeze([.12, .18]),
+    gap: Object.freeze([.5, .8]),
+    horizon: 3.2, defendAt: 1.1, pushAt: 9, supportAt: 3, punishAt: 5.5,
+    spellValue: 1.15, spellDef: .85,
+    offensiveSpells: true,  // clear defenders or freeze a tower while allies are in range
+  }),
+});
+
+export const DIFFICULTIES = Object.freeze(Object.keys(PROFILES));

@@ -23,7 +23,6 @@ const FILL_TF = Array.from({ length: FILL_STEPS + 1 }, (_, i) => `scaleX(${(i / 
 const CHARGE_TF = Array.from({ length: CHARGE_STEPS + 1 }, (_, i) => `scaleY(${(i / CHARGE_STEPS).toFixed(4)})`);
 
 const BANNER_KINDS = new Set(['info', 'surge', 'overtime', 'good', 'bad']);
-const DIFF_LABEL = { easy: 'Easy', normal: 'Normal', hard: 'Hard' };
 const PHASE_LABEL = { regular: 'Time left', surge: 'Double elixir', overtime: 'Overtime', ended: 'Time' };
 const OUTCOME_TITLE = { win: 'Victory', lose: 'Defeat', draw: 'Draw' };
 const SCREENS = ['menu', 'battle', 'result'];
@@ -140,13 +139,22 @@ export class UI {
       h('div', { class: 'logo__tag', text: 'Royal Arena · Battle for the crown' }));
 
     this.diffBtns = {};
-    this.diffSeg = h('div', { class: 'seg seg--3 seg--diff', role: 'radiogroup', 'aria-label': 'Rival difficulty' },
+    this.diffSeg = h('div', { class: 'seg seg--diff', role: 'radiogroup', 'aria-label': 'Rival difficulty',
+      style: `--segments:${DIFFICULTIES.length}` },
       h('span', { class: 'seg__thumb', 'aria-hidden': 'true' }));
-    DIFFICULTIES.forEach((d) => {
+    DIFFICULTIES.forEach((d, i) => {
       const b = h('button', {
         class: `seg__btn diff--${d}`, type: 'button', role: 'radio', 'aria-checked': 'false',
         onclick: () => this._setDifficulty(d),
-      }, h('span', { text: DIFF_LABEL[d] }));
+        onkeydown: event => {
+          const last = DIFFICULTIES.length - 1;
+          const next = { ArrowLeft: i ? i - 1 : last, ArrowRight: i === last ? 0 : i + 1, Home: 0, End: last }[event.key];
+          if (next === undefined) return;
+          event.preventDefault();
+          this._setDifficulty(DIFFICULTIES[next]);
+          this.diffBtns[DIFFICULTIES[next]].focus();
+        },
+      }, h('span', { text: d[0].toUpperCase() + d.slice(1) }));
       this.diffBtns[d] = b;
       this.diffSeg.appendChild(b);
     });
@@ -433,6 +441,7 @@ export class UI {
       const on = d === s.difficulty;
       this.diffBtns[d].classList.toggle('is-on', on);
       this.diffBtns[d].setAttribute('aria-checked', on ? 'true' : 'false');
+      this.diffBtns[d].tabIndex = on ? 0 : -1;
       if (on) {
         this.diffSeg.style.setProperty('--i', String(i));
         this.diffSeg.dataset.value = d;

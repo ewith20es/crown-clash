@@ -19,6 +19,8 @@ const TROPHIES = {
   easy: { win: 20, lose: -8 },
   normal: { win: 30, lose: -15 },
   hard: { win: 40, lose: -12 },
+  expert: { win: 50, lose: -12 },
+  master: { win: 60, lose: -12 },
 };
 
 function bootMessage(text) {
@@ -182,7 +184,7 @@ class Game {
     this.input.reset();
     const opponent = this.pickOpponent();
     const seed = Number(params.get('seed')) || ((Math.random() * 0x7fffffff) | 0) || 1;
-    this.ui.showBattle({ playerName: 'You', enemyName: opponent.name, enemyTitle: opponent.title });
+    this.ui.showBattle({ playerName: 'You', enemyName: opponent.name, enemyTitle: opponent.title + ' · ' + this.state.difficulty });
     this.battle.start({
       deck: this.state.deck, towerTroop: this.state.towerTroop, opponent, difficulty: this.state.difficulty, seed,
       autoplay: params.has('autoplay'), speed: Math.max(0.25, Number(params.get('speed')) || 1),

@@ -1,12 +1,13 @@
 // DOM-free helpers for the UI: formatting, deck editing, sorting and state normalisation.
 // Kept free of `document` so they can be exercised from Node.
 import { MATCH } from '../config.js';
+import { DIFFICULTIES } from '../ai/profiles.js';
+export { DIFFICULTIES };
 import { COLLECTION_CARDS, CARD_BY_ID, FAMILY_FORMS, DEFAULT_DECK, isValidDeck, formForSlot } from '../data/cards.js';
 
 export const TYPE_LABEL = Object.freeze({ troop: 'Troop', spell: 'Spell', building: 'Building', tower: 'Tower troop' });
 export const RARITY_LABEL = Object.freeze({ common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', champion: 'Champion' });
 export const RARITY_ORDER = Object.freeze({ common: 0, rare: 1, epic: 2, legendary: 3, champion: 4 });
-export const DIFFICULTIES = Object.freeze(['easy', 'normal', 'hard']);
 export const QUALITIES = Object.freeze(['low', 'medium', 'high']);
 export const PHASES = Object.freeze(['regular', 'surge', 'overtime', 'ended']);
 export const FILTERS = Object.freeze(['all', 'troop', 'spell', 'building', 'evolution', 'hero', 'champion']);
