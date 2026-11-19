@@ -12,6 +12,7 @@
 import { CARDS, OPPONENTS } from './data/cards.js';
 import { cardArtUrl } from './data/royale-art.js';
 import { loadState, saveState } from './game/store.js';
+import { Multiplayer } from './game/multiplayer.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -58,13 +59,19 @@ class Game {
       on: {
         play: () => this.startMatch(),
         towerChange: (id) => {this.state.towerTroop=id;saveState(this.state);},
-        ability: (id) => {if(this.battle.canPlayerAct())this.battle.world.activateAbility(0,id);},
+        ability: id => this.battle.activateAbility(id),
+        onlineStart: (op, code) => this.online.start(op, { deck: this.state.deck, towerTroop: this.state.towerTroop }, code),
+        onlineCancel: () => this.online.stop(),
+        onlineClose: () => { if (!this.online.session?.active) this.online.stop(); },
         deckChange: (deck) => { this.state.deck = [...deck]; saveState(this.state); },
         difficultyChange: (d) => { this.state.difficulty = d; saveState(this.state); },
         settingsChange: (s) => this.applySettings(s),
         cardPointerDown: (i, ev) => this.input.onCardDown(i, ev),
         surrender: () => this.battle.surrender(),
-        rematch: () => this.startMatch(),
+        rematch: () => {
+          if (this.battle.online) { this.toMenu(); this.ui.openPanel('online'); }
+          else this.startMatch();
+        },
         exitToMenu: () => this.toMenu(),
         sound: (name) => this.audio.play(name),
       },
@@ -76,6 +83,26 @@ class Game {
     });
     this.input = new CardInput({
       stage: this.stage, arena: this.arena, ui: this.ui, audio: this.audio, battle: this.battle, canvas,
+    });
+    this.online = new Multiplayer({
+      wait: (message, code) => this.ui.onlinePanel.show(message, code, true),
+      frame: (packet, first) => {
+        if (first) this.startOnline(packet);
+        this.battle.receive(packet);
+      },
+      connection: message => {
+        this.ui.connection.textContent = message;
+        this.ui.connection.hidden = !message;
+        if (message) this.battle.running = false;
+      },
+      denied: command => {
+        if (command.type === 'card') this.ui.flashCard(command.index, 'denied');
+        this.ui.hint('That move is no longer available');
+      },
+      error: message => {
+        if (this.ui.screen === 'battle') { this.toMenu(); this.ui.openPanel('online'); }
+        this.ui.onlinePanel.show(message);
+      },
     });
 
     this.stage.setCameraMode('menu', true);
@@ -200,9 +227,20 @@ class Game {
     }
   }
 
+  startOnline(packet) {
+    clearTimeout(this.resultTimer);
+    this.input.reset();
+    this.ui.showBattle({ online: true, team: packet.team, playerName: 'You', enemyName: 'Opponent', enemyTitle: 'Online 1v1' });
+    this.battle.startOnline(packet, this.online);
+    this.stage.setCameraMode('battle', false, packet.team);
+    this.syncInsets();
+    requestAnimationFrame(() => this.syncInsets());
+    this.audio.music('battle');
+  }
+
   onBattleEnd(result) {
     this.input.reset();
-    const table = TROPHIES[this.state.difficulty] || TROPHIES.normal;
+    const table = this.battle.online ? TROPHIES.normal : TROPHIES[this.state.difficulty] || TROPHIES.normal;
     let delta = 0;
     if (result.outcome === 'win') delta = table.win + result.stars[0] * 2;
     else if (result.outcome === 'lose') delta = table.lose;
@@ -225,6 +263,7 @@ class Game {
   }
 
   toMenu() {
+    this.online.stop();
     clearTimeout(this.resultTimer);
     this.input.reset();
     this.battle.cleanup();

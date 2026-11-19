@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { SIM_DT, MATCH, TEAMS, UNIT_VISUAL_SCALE } from '../config.js';
 import { World } from '../sim/world.js';
+import { OnlineWorld } from './online-world.js';
 import { Bot } from '../ai/bot.js';
 import { createEntityView, createRuinView } from '../render/models/index.js';
 import { UNITS, CARD_BY_ID } from '../data/cards.js';
@@ -58,6 +59,8 @@ export class Battle {
     this.ui = ctx.ui;
     this.onEnd = ctx.onEnd || (() => {});
 
+    this.player = PLAYER;
+    this.online = null;
     this.world = null;
     this.bot = null;
     this.autoBot = null;      // debug: an AI playing the local player's hand (?autoplay)
@@ -99,6 +102,38 @@ export class Battle {
     this.surrendered = false;
     this.refreshHud(true);
     this.prewarm([deck, opponent.deck]);
+  }
+
+  startOnline(packet, online) {
+    this.cleanup();
+    this.online = online;
+    this.player = packet.team;
+    this.world = new OnlineWorld();
+    this.intro = 0;
+    this.ended = false;
+    this.surrendered = false;
+    this.handSig = '';
+    this.prewarm([packet.frame.players[this.player].deck]);
+  }
+
+  receive(packet) {
+    const world = this.world;
+    const elapsed = packet.frame.time - world.time;
+    world.apply(packet.frame);
+    this.snapshotInterval = Math.min(.5, Math.max(SIM_DT, elapsed));
+    this.alpha = 0;
+    this.running = packet.live && world.phase !== 'ended';
+    this.handleEvents(packet.events);
+    this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
+    if (world.phase === 'ended') this.finish({ winner: world.winner,
+      stars: world.players.map(p => p.stars), reason: world.endReason });
+    this.refreshHud(false);
+  }
+
+  activateAbility(id) {
+    if (!this.canPlayerAct()) return;
+    if (this.online) this.online.send({ type: 'ability', id });
+    else this.world.activateAbility(this.player, id);
   }
 
   /**
@@ -157,6 +192,8 @@ export class Battle {
     this.ruins.length = 0;
     this.fx.reset();
     this.overlay.reset();
+    this.player = PLAYER;
+    this.online = null;
     this.world = null;
     this.bot = null;
     this.autoBot = null;
@@ -170,7 +207,7 @@ export class Battle {
   /** Try to play a card for the local player. Gives UI/audio feedback either way. */
   playCard(handIndex, x, z) {
     if (!this.canPlayerAct()) return false;
-    const res = this.world.canPlay(PLAYER, handIndex, x, z);
+    const res = this.world.canPlay(this.player, handIndex, x, z);
     if (!res.ok) {
       this.ui.flashCard(handIndex, 'denied');
       this.audio.play('error');
@@ -178,7 +215,9 @@ export class Battle {
       if (res.reason === 'space') this.ui.hint('No free deployment tile');
       return false;
     }
-    const ok = this.world.playCard(PLAYER, handIndex, x, z);
+    const ok = this.online
+      ? this.online.send({ type: 'card', card: res.card.id, index: handIndex, x, z })
+      : this.world.playCard(this.player, handIndex, x, z);
     if (ok) {
       this.ui.flashCard(handIndex, 'played');
       this.ui.hint(null);
@@ -188,6 +227,7 @@ export class Battle {
 
   surrender() {
     if (!this.world || this.ended) return;
+    if (this.online) { this.online.surrender(); return; }
     this.surrendered = true;
     this.finish({ winner: ENEMY, stars: [this.world.players[0].stars, this.world.players[1].stars], reason: 'surrender' });
   }
@@ -207,7 +247,9 @@ export class Battle {
       }
     }
 
-    if (this.running) {
+    if (this.online) {
+      this.alpha = Math.min(1, this.alpha + dt / this.snapshotInterval);
+    } else if (this.running) {
       this.acc += dt * this.speed;
       let steps = 0;
       while (this.acc >= SIM_DT && steps < MAX_STEPS_PER_FRAME * Math.max(1, this.speed)) {
@@ -235,16 +277,16 @@ export class Battle {
   refreshHud(force) {
     const world = this.world;
     if (!world) return;
-    const p = world.players[PLAYER];
+    const p = world.players[this.player];
     this.ui.setAether(p.aether, MATCH.AETHER_MAX);
-    this.ui.setAbilities(world.abilities(PLAYER));
+    this.ui.setAbilities(world.abilities(this.player));
     this.ui.setTimer(world.timeLeft, world.phase);
     const sig = p.hand.join(',') + '|' + p.next;
     if (force || sig !== this.handSig) {
       this.handSig = sig;
       this.ui.setHand(p.hand, p.next);
     }
-    const costs = p.hand.map(id => world.cardCost(PLAYER, CARD_BY_ID[id]));
+    const costs = p.hand.map(id => world.cardCost(this.player, CARD_BY_ID[id]));
     const cycles = p.hand.map(id => {
       const card = CARD_BY_ID[id];
       if (card.variant !== 'evolution') return null;
@@ -252,7 +294,7 @@ export class Battle {
       return played >= card.cycles ? 'READY' : `${played}/${card.cycles}`;
     });
     this.ui.setHandCosts(costs, cycles);
-    if (force) this.ui.setStars(world.players[PLAYER].stars, world.players[ENEMY].stars);
+    if (force) this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
   }
 
   syncViews(dt, time, alpha) {
@@ -372,7 +414,7 @@ export class Battle {
           break;
         }
         case 'towerDown': {
-          ui.setStars(world.players[PLAYER].stars, world.players[ENEMY].stars);
+          ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
           stage.shake(ev.slot === 'citadel' ? 1.0 : 0.65, ev.slot === 'citadel' ? 0.9 : 0.6);
           const ruin = createRuinView(ev.slot === 'citadel' ? 'citadel' : 'spire', ev.team);
           ruin.position.set(ev.x, 0, ev.z);
@@ -380,13 +422,13 @@ export class Battle {
           stage.scene.add(ruin);
           this.ruins.push(ruin);
           if (ev.slot !== 'citadel') {
-            if (ev.team === ENEMY) ui.banner('TOWER DESTROYED', { kind: 'good', sub: 'You can now deploy on that side of their arena' });
+            if (ev.team !== this.player) ui.banner('TOWER DESTROYED', { kind: 'good', sub: 'You can now deploy on that side of their arena' });
             else ui.banner('TOWER LOST', { kind: 'bad', sub: 'Your King Tower has awakened' });
           }
           break;
         }
         case 'citadelWake':
-          if (ev.team === ENEMY) ui.banner('ENEMY KING TOWER AWAKENS', { kind: 'info', duration: 1.6 });
+          if (ev.team !== this.player) ui.banner('ENEMY KING TOWER AWAKENS', { kind: 'info', duration: 1.6 });
           break;
         case 'phase':
           if (ev.phase === 'surge') ui.banner('DOUBLE ELIXIR', { kind: 'surge', sub: 'Elixir flows twice as fast' });
@@ -412,22 +454,22 @@ export class Battle {
     }
     this.fx.handleEvents(events, world);
     this.overlay.handleEvents(events, world);
-    audio.handleEvents(events, world);
+    audio.handleEvents(events, world, this.player);
   }
 
   finish(ev) {
     if (this.ended) return;
     this.ended = true;
     const world = this.world;
-    const outcome = ev.winner === PLAYER ? 'win' : ev.winner === ENEMY ? 'lose' : 'draw';
-    this.ui.setStars(world.players[PLAYER].stars, world.players[ENEMY].stars);
+    const outcome = ev.winner === this.player ? 'win' : ev.winner === 1 - this.player ? 'lose' : 'draw';
+    this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
     if (this.surrendered) this.running = false;
     this.onEnd({
       outcome,
       reason: ev.reason,
-      stars: [ev.stars[PLAYER], ev.stars[ENEMY]],
-      stats: world.stats ? { ...world.stats[PLAYER] } : {},
-      surrendered: this.surrendered,
+      stars: [ev.stars[this.player], ev.stars[1 - this.player]],
+      stats: world.stats ? { ...world.stats[this.player] } : {},
+      surrendered: this.surrendered || ev.reason === 'surrender' || ev.reason === 'disconnect',
     });
   }
 }

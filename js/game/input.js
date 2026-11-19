@@ -3,7 +3,6 @@
 import { UNITS } from '../data/cards.js';
 import { UNIT_VISUAL_SCALE } from '../config.js';
 import { createGhostView } from '../render/models/index.js';
-import { PLAYER } from './battle.js';
 
 const DRAG_THRESHOLD = 9;   // px before a press on a card counts as a drag
 
@@ -158,7 +157,7 @@ export class CardInput {
 
   cardIdAt(index) {
     const world = this.battle.world;
-    return world ? world.players[PLAYER].hand[index] : null;
+    return world ? world.players[this.battle.player].hand[index] : null;
   }
 
   isOverArena(clientY) {
@@ -194,7 +193,7 @@ export class CardInput {
     const world = this.battle.world;
     const g = world && this.stage.screenToGround(clientX, clientY);
     if (!g) { this.hidePreview(); return; }
-    const res = world.canPlay(PLAYER, index, g.x, g.z);
+    const res = world.canPlay(this.battle.player, index, g.x, g.z);
     const card = res.deployment;
     if (!card) { this.hidePreview(); return; }
     this.previewOn = true;
@@ -205,12 +204,12 @@ export class CardInput {
       const ghost = this.ghostFor(card);
       this.setGhost(ghost);
       ghost.position.set(res.x, 0, res.z);
-      world.deploymentPositions(card, PLAYER, res.x, res.z).forEach((member, i) => {
+      world.deploymentPositions(card, this.battle.player, res.x, res.z).forEach((member, i) => {
         const pos = ghost.children[i]?.position;
         if (pos) pos.set(member.x - res.x, pos.y, member.z - res.z);
       });
       const anywhere = UNITS[card.unit].deployAnywhere;
-      this.arena.showDeployZone(anywhere ? null : { rects: world.deployRects(PLAYER) });
+      this.arena.showDeployZone(anywhere ? null : { rects: world.deployRects(this.battle.player) });
     }
     this.arena.setMarker({ x: res.x, z: res.z, radius: markerRadius(card), ok: res.ok, kind: card.type });
   }
@@ -224,10 +223,10 @@ export class CardInput {
   }
 
   ghostFor(card) {
-    const key = card.dualForm ? card.id + '/' + card.unit : card.id;
+    const key = this.battle.player + '/' + card.id + '/' + card.unit;
     let g = this.ghosts.get(key);
     if (!g) {
-      g = createGhostView(card, PLAYER);
+      g = createGhostView(card, this.battle.player);
       // match the in-battle troop size; offsets stay unscaled so the preview matches spawn spots
       if (card.type === 'troop') {
         for (const child of g.children) child.scale.multiplyScalar(UNIT_VISUAL_SCALE);

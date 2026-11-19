@@ -114,6 +114,7 @@ export function normalizeState(s, base) {
 
 const REASONS = {
   citadel: { win: 'Their King Tower has fallen', lose: 'Your King Tower has fallen', draw: 'Both King Towers fell' },
+  disconnect: { win: 'Your opponent disconnected', lose: 'Your connection timed out', draw: 'Both players disconnected' },
   surrender: { win: 'Your rival withdrew', lose: 'You left the battle', draw: 'The battle was abandoned' },
   stars: { win: 'More Princess Towers toppled at the bell', lose: 'They toppled more Princess Towers', draw: 'Neither side broke through' },
   time: { win: 'More Princess Towers toppled at the bell', lose: 'They toppled more Princess Towers', draw: 'Neither side broke through' },

@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: crown-clash-multiplayer
+    runtime: node
+    plan: free
+    buildCommand: node --check tools/serve.mjs
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PAGES_ORIGIN
+        value: https://ewith20es.github.io

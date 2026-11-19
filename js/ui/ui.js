@@ -8,6 +8,7 @@ import { icon, EMBLEM } from './icons.js';
 import { createCard, applyArtAll } from './card.js';
 import { cardArtUrl } from '../data/royale-art.js';
 import { DeckBuilder } from './deckbuilder.js';
+import { MultiplayerPanel } from './multiplayer-panel.js';
 import { SettingsPanel, HowToPanel } from './panels.js';
 import {
   formatClock, formatNumber, formatDelta, normalizeState, normalizeSettings, reasonText, resultStatRows,
@@ -198,6 +199,7 @@ export class UI {
       h('nav',{class:'royal-nav','aria-label':'Game navigation'},
         h('button',{type:'button',onclick:ev=>this.openPanel('deck',ev)},h('span',{html:icon('cards')}),h('b',{text:'Cards'})),
         h('button',{type:'button',class:'is-current','aria-current':'page',onclick:()=>this._onPlay()},h('span',{html:icon('swords')}),h('b',{text:'Battle'})),
+        h('button',{type:'button',onclick:ev=>this.openPanel('online',ev)},h('span',{html:icon('swords')}),h('b',{text:'Multiplayer'})),
         h('button',{type:'button',onclick:ev=>this.openPanel('howto',ev)},h('span',{html:icon('help')}),h('b',{text:'Training'})),
         h('button',{type:'button',onclick:ev=>this.openPanel('settings',ev)},h('span',{html:icon('gear')}),h('b',{text:'Settings'}))));
   }
@@ -295,7 +297,8 @@ export class UI {
       this.aeBar);
 
     this.bannerLayer = h('div', { class: 'banner-layer', 'aria-live': 'assertive' });
-    this.elBattle = h('div', { class: 'scr scr-battle', id: 'ui-battle' }, this.elTop, this.bannerLayer, this.elBottom);
+    this.connection = h('div', { class: 'online-connection', role: 'status', hidden: true });
+    this.elBattle = h('div', { class: 'scr scr-battle', id: 'ui-battle' }, this.elTop, this.bannerLayer, this.elBottom, this.connection);
   }
 
   setAbilities(abilities) {
@@ -360,7 +363,9 @@ export class UI {
       change: (s) => this._setSettings(s),
     });
     this.howtoPanel = new HowToPanel(base);
-    this.panels = { deck: this.deckBuilder.el, settings: this.settingsPanel.el, howto: this.howtoPanel.el };
+    this.onlinePanel = new MultiplayerPanel((op, code) => this._emit('onlineStart', op, code), base.close,
+      () => { this._emit('onlineCancel'); this.onlinePanel.show(); });
+    this.panels = { deck: this.deckBuilder.el, settings: this.settingsPanel.el, howto: this.howtoPanel.el, online: this.onlinePanel.el };
     const backdrop = h('div', {
       class: 'panel-backdrop',
       onclick: () => {
@@ -370,7 +375,7 @@ export class UI {
       },
     });
     this.elPanels = h('div', { class: 'panel-layer', 'aria-hidden': 'true' },
-      backdrop, this.panels.deck, this.panels.settings, this.panels.howto);
+      backdrop, ...Object.values(this.panels));
   }
 
   _buildModal() {
@@ -508,6 +513,12 @@ export class UI {
     this.enemyTitleEl.textContent = this.info.enemyTitle;
     this.enemyTitleEl.hidden = !this.info.enemyTitle;
     this.youNameEl.textContent = this.info.playerName;
+    this.elBattle.dataset.team = String(i.team || 0);
+    this.connection.hidden = true;
+    this.youNameEl.parentElement.querySelector('.hud-title').textContent = TEAMS[i.team || 0].name;
+    const again = i.online ? 'Multiplayer lobby' : 'Battle again';
+    this.resAgain.lastChild.textContent = again;
+    this.resAgain.setAttribute('aria-label', again);
     this._resetBattleState();
     this._setScreen('battle');
   }
@@ -568,6 +579,7 @@ export class UI {
     if (!this.panels[name] || this._screen !== 'menu' || this.panelName === name) return;
     if (this.panelName) this.closePanel(true);
     this._sound('open');
+    if (name === 'online') this.onlinePanel.show();
     if (name === 'deck') this.deckBuilder.open();
     else if (name === 'settings') this.settingsPanel.refresh();
     for (const k of Object.keys(this.panels)) this.panels[k].classList.toggle('is-current', k === name);
@@ -585,6 +597,7 @@ export class UI {
   closePanel(keepCover) {
     if (!this.panelName) return;
     if (this.panelName === 'deck') { this.deckBuilder.drag.cancel(); this.deckBuilder.closeDetail(true); this.deckBuilder.setPick(null); }
+    if (this.panelName === 'online') this._emit('onlineClose');
     this.panelName = null;
     this.elPanels.classList.remove('is-open');
     this.elPanels.setAttribute('aria-hidden', 'true');

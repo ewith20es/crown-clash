@@ -39,7 +39,7 @@
 .btn--battle { font-size:32px; min-height:64px; }
 .btn--deck { min-height:64px; }
 .royal-nav { display:flex; width:100%; max-width:620px; z-index:2; border:2px solid #122e4c; border-radius:10px; overflow:hidden; background:linear-gradient(#5d82a4,#3f6286); box-shadow:inset 0 2px #acbfd2,0 4px #082748; flex:none; }
-.royal-nav button { width:25%; border:0; border-right:1px solid #193f69; background:transparent; padding:8px 4px; display:flex; align-items:center; justify-content:center; gap:9px; }
+.royal-nav button { flex:1; min-width:0; border:0; border-right:1px solid #193f69; background:transparent; padding:8px 4px; display:flex; align-items:center; justify-content:center; gap:6px; }
 .royal-nav button span { font-size:25px; color:#d9efff; filter:drop-shadow(0 2px #173b61); }
 .royal-nav button b { font-size:14px; text-shadow:var(--outline-sm); }
 .royal-nav .is-current { background:linear-gradient(#45a9ed,#2376b7); box-shadow:inset 0 3px #9bdfff; }
@@ -156,3 +156,17 @@
   .deck-slots { max-width:690px; grid-template-columns:repeat(8,minmax(0,1fr)); gap:7px; }
   .deck-slot__label { font-size:9px; } .slot--hero .deck-slot__label { font-size:8px; } .deck-slot { padding:21px 2px 2px; }
 }
+
+.panel--online .panel__body, .online-choices { display:grid; gap:14px; }
+.panel--online [hidden], .online-connection[hidden] { display:none; }
+.online-status { margin:0; line-height:1.5; text-align:center; }
+.online-status:empty { display:none; }
+.online-join { border-top:1px solid #6685a4; padding-top:18px; display:grid; grid-template-columns:1fr auto; gap:8px; }
+.online-join label { grid-column:1 / -1; font-weight:800; }
+.online-join input { width:100%; min-width:0; box-sizing:border-box; padding:12px; border:2px solid #719fc4; border-radius:8px; background:#102e4d; color:white; font:inherit; text-transform:uppercase; user-select:text; }
+.online-join input::placeholder { color:#c1cfe1; text-transform:none; }
+.online-code { display:block; padding:15px; text-align:center; font:bold 2rem monospace; letter-spacing:.15em; color:#ffe5a4; background:#122e4c; border-radius:8px; user-select:all; }
+.online-connection { position:absolute; top:20%; left:50%; transform:translateX(-50%); padding:8px 14px; max-width:90%; border-radius:8px; background:#122e4c; color:white; text-align:center; }
+.scr-battle[data-team="1"] .hud-side--you .hud-name { color:#ffd4bf; }
+.scr-battle[data-team="1"] .hud-side--enemy .hud-name { color:#d5edff; }
+@media(max-width:520px) { .royal-nav button { flex-direction:column; gap:2px; padding:5px 1px; } .royal-nav button b { font-size:clamp(10px,2.7vw,12px); } }

@@ -205,13 +205,13 @@ export class AudioEngine {
   }
 
   /** Map simulation events to sounds. Positions pan across the stereo field. */
-  handleEvents(events, _world) {
+  handleEvents(events, _world, player = 0) {
     if (!this.ctx || !this.sfxOn) return;
     for (let i = 0; i < events.length; i++) {
       const ev = events[i];
-      const pan = typeof ev.x === 'number' ? (ev.x / 9) * 0.6 : 0;
+      const pan = typeof ev.x === 'number' ? (ev.x / 9) * (player === 0 ? 0.6 : -0.6) : 0;
       switch (ev.type) {
-        case 'cardPlayed': this.play('deploy', { pan, gain: ev.team === 0 ? 1 : 0.7, important: true }); break;
+        case 'cardPlayed': this.play('deploy', { pan, gain: ev.team === player ? 1 : 0.7, important: true }); break;
         case 'spellCast': this.play('spellCast', { pan }); break;
         case 'shoot': {
           const k = ev.projKind;
@@ -233,7 +233,7 @@ export class AudioEngine {
         case 'shieldBreak': this.play('shieldBreak', { pan }); break;
         case 'death': this.play(ev.kind === 'unit' ? 'pop' : 'crumble', { pan }); break;
         case 'heal': if (ev.healed > 0) this.play('heal', { pan }); break;
-        case 'aether': if (ev.team === 0) this.play('aether', { pan }); break;
+        case 'aether': if (ev.team === player) this.play('aether', { pan }); break;
         case 'charge': this.play('charge', {}); break;
         case 'pounce': case 'hop': this.play('whoosh', {}); break;
         case 'landing': case 'blast': this.play('explosion', { pan, important: true }); break;

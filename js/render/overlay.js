@@ -236,7 +236,7 @@ export class Overlay {
             if (this._pounces > 0) this._pounceHit(ev, world);
             break;
           case 'aether':
-            if (ev.team === 0) {
+            if (ev.team === this.stage.playerTeam) {
               const src = world.getEntity(ev.id);
               const top = src ? src.y + (src.def.height || 1.4) + 1.0 : 2.8;
               this._spawnText(T_AETHER, this._amountText(ev.amount), ev.x, top, ev.z, 0);
@@ -749,8 +749,9 @@ export class Overlay {
 
       // enemy towers: above the roof; own towers: below the base (toward the camera)
       let top;
-      if (team === 0) {
-        stage.worldToScreen(e.x, 0, e.z + e.radius + 0.55, p);
+      if (team === stage.playerTeam) {
+        const forward = team === 0 ? 1 : -1;
+        stage.worldToScreen(e.x, 0, e.z + forward * (e.radius + 0.55), p);
         top = p.y + px * 0.8 + 4 * k;
       } else {
         stage.worldToScreen(e.x, (def.height || 4.6) + 0.4, e.z, p);

@@ -352,7 +352,7 @@ export class Stage {
     b.lx = 0; b.ly = 0; b.lz = 0;
     b.dist = f.dist;
     b.elev = f.elev;
-    b.azim = 0;
+    b.azim = this.playerTeam === 1 ? Math.PI : 0;
     b.fov = BATTLE_FOV;
     b.off = f.offsetY / H;
 
@@ -366,7 +366,9 @@ export class Stage {
 
   // ───────────────────────────── camera ─────────────────────────────
 
-  setCameraMode(mode, immediate = false) {
+  setCameraMode(mode, immediate = false, team = 0) {
+    this.playerTeam = team;
+    this._layoutCameras();
     if (mode !== 'menu' && mode !== 'battle') return;
     if (mode === this.mode && !immediate) return;
     if (mode === 'menu' && this.mode !== 'menu') this._menuAzim = wrapAngle(this._cur.azim);
