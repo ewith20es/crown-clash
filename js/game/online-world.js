@@ -26,6 +26,19 @@ export class OnlineWorld extends World {
   abilities() { return this.onlineAbilities; }
 
   apply(frame, alpha = 1) {
+    const gap = frame.time - this.time;
+    const resetMotion = this.motionTime === undefined || gap > .5 || frame.time - this.motionTime > .65;
+    if (resetMotion) {
+      this.motionDelay = .15;
+      this.motionTime = frame.time - this.motionDelay;
+      this.motionRate = 1;
+    } else if (gap > 0) {
+      // Keep about one or two movement updates in reserve. Absorb late packets
+      // by adjusting playback speed gradually, never rewinding a walking troop.
+      this.motionDelay = Math.min(.32, Math.max(.15, gap * 1.25, this.motionDelay * .97));
+      const error = frame.time - this.motionDelay - this.motionTime;
+      this.motionRate = Math.max(.9, Math.min(1.1, 1 + error));
+    }
     const previous = this._map;
     const { entities, abilities, ...state } = frame;
     for (const field of ['projectiles', 'rollers']) {
@@ -58,10 +71,38 @@ export class OnlineWorld extends World {
       e.px = px ?? e.x;
       e.py = py ?? e.y;
       e.pz = pz ?? e.z;
+      if (e.kind === 'unit') {
+        const path = e.motionPath ??= [];
+        if (resetMotion) path.length = 0;
+        const pose = { time: frame.time, x: e.x, y: e.y, z: e.z, facing: e.facing };
+        if (path.length && path[path.length - 1].time === frame.time) path[path.length - 1] = pose;
+        else path.push(pose);
+        // Bound storage even if the tab keeps receiving updates while hidden.
+        if (path.length > 16) path.shift();
+      }
       this._map.set(e.id, e);
       if (e.kind !== 'unit') this._structs.push(e);
       if (e.slot) this.towers[e.team][e.slot] = e;
       return e;
     });
+  }
+
+  updateMovement(dt) {
+    if (this.motionTime === undefined) return;
+    if (this.time > 0) this.motionTime = Math.min(this.time, this.motionTime + dt * this.motionRate);
+    if (this.phase === 'ended') this.motionTime = this.time;
+    for (const e of this.entities) {
+      const path = e.motionPath;
+      if (!path?.length) continue;
+      while (path.length > 1 && path[1].time <= this.motionTime) path.shift();
+      const a = path[0], b = path[1] ?? a;
+      const fraction = b === a ? 0 : Math.max(0, (this.motionTime - a.time) / (b.time - a.time));
+      e.drawX = a.x + (b.x - a.x) * fraction;
+      e.drawY = a.y + (b.y - a.y) * fraction;
+      e.drawZ = a.z + (b.z - a.z) * fraction;
+      const turn = b.facing - a.facing;
+      const arc = Math.abs(turn) > Math.PI ? turn - Math.sign(turn) * Math.PI * 2 : turn;
+      e.drawFacing = a.facing + arc * fraction;
+    }
   }
 }

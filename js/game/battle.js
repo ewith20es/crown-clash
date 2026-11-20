@@ -281,6 +281,7 @@ export class Battle {
     }
 
     if (this.online) {
+      world.updateMovement(dt);
       this.alpha = Math.min(1, this.alpha + dt / this.snapshotInterval);
     } else if (this.running) {
       this.acc += dt * this.speed;
@@ -356,14 +357,14 @@ export class Battle {
       }
       rec.stamp = stamp;
 
-      const x = e.px + (e.x - e.px) * alpha;
-      const z = e.pz + (e.z - e.pz) * alpha;
-      const y = e.py + (e.y - e.py) * alpha;
+      const x = e.drawX ?? e.px + (e.x - e.px) * alpha;
+      const z = e.drawZ ?? e.pz + (e.z - e.pz) * alpha;
+      const y = e.drawY ?? e.py + (e.y - e.py) * alpha;
       rec.x = x; rec.y = y; rec.z = z;
       const root = rec.view.root;
       root.position.set(x, y, z);
       if (e.kind === 'unit') {
-        rec.yaw = dampAngle(rec.yaw, e.facing, 16, dt);
+        rec.yaw = dampAngle(rec.yaw, e.drawFacing ?? e.facing, 16, dt);
         root.rotation.y = rec.yaw;
         const dep = e.deployTime > 0 ? Math.min(1, Math.max(0, 1 - e.deployLeft / e.deployTime)) : 1;
         if (dep > 0.05) {
@@ -395,7 +396,7 @@ export class Battle {
       s.aimYaw = null;
       if (e.targetId) {
         const t = world.getEntity(e.targetId);
-        if (t) s.aimYaw = Math.atan2(t.x - e.x, t.z - e.z);
+        if (t) s.aimYaw = Math.atan2((t.drawX ?? t.x) - x, (t.drawZ ?? t.z) - z);
       }
       rec.view.update(dt, s);
     }

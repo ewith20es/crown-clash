@@ -109,6 +109,32 @@ test('early snapshots resume from the displayed positions of troops and projecti
   assert.equal(view.getEntity(troop.id).x, 5);
 });
 
+test('a walking troop keeps moving through jitter while its authoritative position updates immediately', () => {
+  const server = new World();
+  const troop = server.addEntity('mite', 0, 0, 6);
+  const view = new OnlineWorld();
+  let next = 0, lastX = 0;
+  // A 60 Hz display, 10 Hz snapshots, and an extra four display frames of
+  // network delay on alternate replies. Walk one tile per second.
+  for (let frame = 0; frame <= 300; frame++) {
+    if (frame >= next * 6 + (next % 2 ? 4 : 0)) {
+      server.time = next++ / 10;
+      troop.x = server.time;
+      view.apply(snapshot(server, 0));
+      assert.equal(view.getEntity(troop.id).x, troop.x);
+    }
+    view.updateMovement(1 / 60);
+    const x = view.getEntity(troop.id).drawX;
+    if (frame > 60) assert.ok(x > lastX && x - lastX <= 1.11 / 60);
+    lastX = x;
+  }
+  server.time += 2;
+  troop.x = 7;
+  view.apply(snapshot(server, 0));
+  view.updateMovement(1 / 60);
+  assert.equal(view.getEntity(troop.id).drawX, 7);
+});
+
 test('Pages origin can preflight and create a room on the separately hosted API', async t => {
   const pages = 'https://ewith20es.github.io';
   const service = new MatchService();

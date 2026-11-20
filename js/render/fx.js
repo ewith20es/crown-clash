@@ -963,7 +963,7 @@ export class Fx {
       const e = ents[i];
       const unit = e.kind === 'unit';
       const vs = unit ? UNIT_VISUAL_SCALE : 1;
-      const x = e.px + (e.x - e.px) * alpha, y = e.py + (e.y - e.py) * alpha, z = e.pz + (e.z - e.pz) * alpha;
+      const x = e.drawX ?? e.px + (e.x - e.px) * alpha, y = e.drawY ?? e.py + (e.y - e.py) * alpha, z = e.drawZ ?? e.pz + (e.z - e.pz) * alpha;
       const h = (e.def.height || 1.4) * vs;
       const r = (e.radius || 0.5) * vs;
 
@@ -1005,7 +1005,7 @@ export class Fx {
       if (e.beam && e.targetId) {
         const t = world.getEntity(e.targetId);
         if (t) {
-          const tx = t.px + (t.x - t.px) * alpha, ty = t.py + (t.y - t.py) * alpha, tz = t.pz + (t.z - t.pz) * alpha;
+          const tx = t.drawX ?? t.px + (t.x - t.px) * alpha, ty = t.drawY ?? t.py + (t.y - t.py) * alpha, tz = t.drawZ ?? t.pz + (t.z - t.pz) * alpha;
           const th = (t.def.height || 1.4) * (t.kind === 'unit' ? UNIT_VISUAL_SCALE : 1);
           const heat = Math.min(1, (e.rampT || 0) / 4);
           const ax = x + Math.sin(e.facing) * r * 0.5, ay = y + (e.def.muzzle || 1) * vs, az = z + Math.cos(e.facing) * r * 0.5;

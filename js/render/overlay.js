@@ -505,9 +505,9 @@ export class Overlay {
         continue;
       }
 
-      const x = e.px + (e.x - e.px) * alpha;
-      const y = e.py + (e.y - e.py) * alpha;
-      const z = e.pz + (e.z - e.pz) * alpha;
+      const x = e.drawX ?? e.px + (e.x - e.px) * alpha;
+      const y = e.drawY ?? e.py + (e.y - e.py) * alpha;
+      const z = e.drawZ ?? e.pz + (e.z - e.pz) * alpha;
       const vh = (def.height || 1.4) * (e.kind === 'unit' ? UNIT_VISUAL_SCALE : 1);
       stage.worldToScreen(x, y + vh + 0.35, z, p);
       if (p.behind) continue;
