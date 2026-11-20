@@ -180,6 +180,7 @@ export class Stage {
   setQuality(q) {
     if (!QUALITY[q]) q = 'high';
     this.quality = q;
+    this._nextShadowUpdate = 0;
     const Q = QUALITY[q];
     const sun = this.sun;
     sun.castShadow = Q.shadows;
@@ -382,6 +383,14 @@ export class Stage {
     if (!(dt > 0) || !Number.isFinite(dt)) dt = 0;
     if (dt > 0.25) dt = 0.25;
     this._dynamicResolution(dt);
+    // On slow battle frames, reuse the previous light-space depth texture.
+    // Models, input, and the camera still update on every animation frame.
+    const shadows = this.renderer.shadowMap;
+    shadows.autoUpdate = this.mode !== 'battle' || this._ft <= 24;
+    if (this.sun.castShadow && (shadows.autoUpdate || time >= this._nextShadowUpdate)) {
+      shadows.needsUpdate = true;
+      this._nextShadowUpdate = time + 1 / 15;
+    }
     this._menuAzim = Math.sin(time * .08) * .12;
     if (this._trT < TRANSITION) this._trT = Math.min(TRANSITION, this._trT + dt);
     if (this._shakeAmp > 0) this._shakeAmp = Math.max(0, this._shakeAmp - this._shakeDecay * dt);

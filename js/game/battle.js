@@ -9,27 +9,57 @@ import { createEntityView, createRuinView } from '../render/models/index.js';
 import { UNITS, CARD_BY_ID } from '../data/cards.js';
 
 // Team-coloured ground ring under every troop: tells the sides apart at a glance in a brawl.
-let ringGeo = null;
-const ringMats = [];
-function teamRing(team, radius) {
-  if (!ringGeo) {
-    ringGeo = new THREE.RingGeometry(0.78, 1, 32, 1);
-    ringGeo.rotateX(-Math.PI / 2);
-    for (const t of TEAMS) {
-      ringMats.push(new THREE.MeshBasicMaterial({
-        color: new THREE.Color(t.glow).multiplyScalar(1.15), transparent: true, opacity: 0.6,
-        depthWrite: false, toneMapped: false,
-      }));
+const ringColors = TEAMS.map(team => new THREE.Color(team.glow).multiplyScalar(1.15));
+
+class TroopRings {
+  constructor(scene) {
+    this.scene = scene;
+    this.geometry = new THREE.RingGeometry(0.78, 1, 32);
+    this.geometry.rotateX(-Math.PI / 2);
+    this.material = new THREE.MeshBasicMaterial({
+      transparent: true, opacity: 0.6, depthWrite: false, toneMapped: false,
+    });
+    this.matrix = new THREE.Matrix4();
+    this.mesh = null;
+  }
+
+  begin(capacity) {
+    if (capacity && (!this.mesh || capacity > this.mesh.instanceMatrix.count)) {
+      if (this.mesh) {
+        this.scene.remove(this.mesh);
+        this.mesh.dispose();
+      }
+      const size = Math.max(32, 2 ** Math.ceil(Math.log2(capacity)));
+      const mesh = this.mesh = new THREE.InstancedMesh(this.geometry, this.material, size);
+      mesh.name = 'Troop rings';
+      mesh.setColorAt(0, ringColors[0]);
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 2;
+      this.scene.add(mesh);
+    }
+    if (this.mesh) { this.mesh.count = 0; this.mesh.visible = false; }
+  }
+
+  add(team, x, z, radius) {
+    const mesh = this.mesh;
+    const i = mesh.count++;
+    this.matrix.makeScale(radius, 1, radius).setPosition(x, 0.11, z);
+    mesh.setMatrixAt(i, this.matrix);
+    mesh.setColorAt(i, ringColors[team]);
+  }
+
+  finish() {
+    const mesh = this.mesh;
+    if (!mesh?.count) return;
+    mesh.visible = true;
+    for (const attr of [mesh.instanceMatrix, mesh.instanceColor]) {
+      attr.clearUpdateRanges();
+      attr.addUpdateRange(0, mesh.count * attr.itemSize);
+      attr.needsUpdate = true;
     }
   }
-  const m = new THREE.Mesh(ringGeo, ringMats[team]);
-  m.userData.r = Math.max(0.3, radius * UNIT_VISUAL_SCALE * 1.05);
-  m.renderOrder = 2;
-  // the per-frame scale multiplies this base radius
-  const g = new THREE.Group();
-  g.add(m);
-  m.scale.setScalar(m.userData.r);
-  return g;
 }
 
 export const PLAYER = 0;
@@ -52,6 +82,7 @@ export class Battle {
    */
   constructor(ctx) {
     this.stage = ctx.stage;
+    this.rings = new TroopRings(this.stage.scene);
     this.arena = ctx.arena;
     this.fx = ctx.fx;
     this.overlay = ctx.overlay;
@@ -184,10 +215,10 @@ export class Battle {
     const scene = this.stage.scene;
     for (const rec of this.views.values()) {
       scene.remove(rec.view.root);
-      if (rec.ring) scene.remove(rec.ring);
       rec.view.dispose();
     }
     this.views.clear();
+    this.rings.begin(0);
     for (const rec of this.dying) { scene.remove(rec.view.root); rec.view.dispose(); }
     this.dying.length = 0;
     for (const r of this.ruins) scene.remove(r);
@@ -307,19 +338,18 @@ export class Battle {
     s.time = time;
 
     const ents = world.entities;
+    this.rings.begin(ents.length);
     for (let i = 0; i < ents.length; i++) {
       const e = ents[i];
       let rec = this.views.get(e.id);
       if (!rec) {
         const view = createEntityView(e.type, e.team);
-        rec = { view, yaw: e.facing, stamp, kind: e.kind, x: e.x, y: e.y, z: e.z, ring: null, base: 1 };
+        rec = { view, yaw: e.facing, stamp, kind: e.kind, x: e.x, y: e.y, z: e.z, base: 1 };
         if (e.kind !== 'unit') {
           view.root.rotation.y = e.team === PLAYER ? Math.PI : 0;
         } else {
           rec.base = UNIT_VISUAL_SCALE;
           view.root.scale.setScalar(UNIT_VISUAL_SCALE);
-          rec.ring = teamRing(e.team, e.radius);
-          scene.add(rec.ring);
         }
         scene.add(view.root);
         this.views.set(e.id, rec);
@@ -335,12 +365,11 @@ export class Battle {
       if (e.kind === 'unit') {
         rec.yaw = dampAngle(rec.yaw, e.facing, 16, dt);
         root.rotation.y = rec.yaw;
-        const ring = rec.ring;
-        ring.position.set(x, 0.11, z);
-        // fade the ring in with deployment; flyers get a fainter ring on the ground below them
         const dep = e.deployTime > 0 ? Math.min(1, Math.max(0, 1 - e.deployLeft / e.deployTime)) : 1;
-        ring.visible = dep > 0.05;
-        ring.scale.setScalar(0.6 + 0.4 * dep);
+        if (dep > 0.05) {
+          const radius = Math.max(0.3, e.radius * UNIT_VISUAL_SCALE * 1.05);
+          this.rings.add(e.team, x, z, radius * (0.6 + 0.4 * dep));
+        }
       }
 
       const def = e.def;
@@ -371,11 +400,12 @@ export class Battle {
       rec.view.update(dt, s);
     }
 
+    this.rings.finish();
+
     // Entities that left the simulation this frame start their exit animation.
     for (const [id, rec] of this.views) {
       if (rec.stamp !== stamp) {
         this.views.delete(id);
-        if (rec.ring) { scene.remove(rec.ring); rec.ring = null; }
         rec.t = 0;
         rec.dur = rec.kind === 'tower' ? 0.75 : rec.kind === 'building' ? 0.4 : 0.2;
         this.dying.push(rec);
