@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { MatchService, serveMatch } from '../tools/multiplayer.mjs';
-import { OnlineWorld } from '../js/game/online-world.js';
+import { OnlineWorld, snapshot } from '../js/game/online-world.js';
+import { World } from '../js/sim/world.js';
 import { DEFAULT_DECK } from '../js/data/cards.js';
 
 function arena() {
@@ -90,6 +91,24 @@ test('disconnect grace, expired rooms and finished match cleanup', () => {
   assert.throws(() => ask(1, 'sync'), /expired/);
 });
 
+test('early snapshots resume from the displayed positions of troops and projectiles', () => {
+  const server = new World();
+  const troop = server.addEntity('mite', 0, 2, 6);
+  const bolt = { id: 99, x: 2, y: 1, z: 6, px: 2, py: 1, pz: 6 };
+  server.projectiles.push(bolt);
+  const view = new OnlineWorld();
+  view.apply(snapshot(server, 0));
+  troop.x = bolt.x = 4;
+  bolt.px = 3.9;
+  view.apply(snapshot(server, 0));
+  troop.x = bolt.x = 5;
+  bolt.px = 4.9;
+  view.apply(snapshot(server, 0), .25);
+  assert.equal(view.getEntity(troop.id).px, 2.5);
+  assert.equal(view.projectiles[0].px, 2.5);
+  assert.equal(view.getEntity(troop.id).x, 5);
+});
+
 test('Pages origin can preflight and create a room on the separately hosted API', async t => {
   const pages = 'https://ewith20es.github.io';
   const service = new MatchService();
@@ -106,6 +125,15 @@ test('Pages origin can preflight and create a room on the separately hosted API'
   const room = await fetch(url, request);
   assert.equal(room.headers.get('Access-Control-Allow-Origin'), pages);
   assert.match((await room.json()).code, /^[A-Z2-9]{6}$/);
+  const joiner = { ...JSON.parse(request.body), token: 'b'.repeat(32), op: 'find' };
+  service.request(joiner);
+  service.request({ ...joiner, token: 'c'.repeat(32) });
+  const sync = { ...request, body: JSON.stringify({ token: joiner.token, op: 'sync' }) };
+  const zipped = await fetch(url, { ...sync, headers: { ...sync.headers, 'Accept-Encoding': 'gzip' } });
+  assert.equal(zipped.headers.get('Content-Encoding'), 'gzip');
+  const plain = await fetch(url, { ...sync, headers: { ...sync.headers, 'Accept-Encoding': 'gzip;q=0' } });
+  assert.equal(plain.headers.get('Content-Encoding'), null);
+  assert.deepEqual(await zipped.json(), await plain.json());
   const refused = await fetch(url, { ...request, headers: { ...request.headers, Origin: 'https://another.example' } });
   assert.equal(refused.status, 403);
   assert.equal(refused.headers.get('Access-Control-Allow-Origin'), null);

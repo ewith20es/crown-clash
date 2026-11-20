@@ -1,4 +1,6 @@
 import { randomInt } from 'node:crypto';
+import { gzip } from 'node:zlib';
+import { promisify } from 'node:util';
 import { World } from '../js/sim/world.js';
 import { SIM_DT } from '../js/config.js';
 import { CARD_BY_ID, isValidDeck } from '../js/data/cards.js';
@@ -7,6 +9,7 @@ import { snapshot } from '../js/game/online-world.js';
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const towers = ['tower-princess', 'cannoneer', 'dagger-duchess', 'royal-chef'];
 const grace = 45_000;
+const gzipAsync = promisify(gzip);
 
 function fail(status, message) { throw Object.assign(new Error(message), { status }); }
 
@@ -151,7 +154,7 @@ export async function serveMatch(req, res, service, pagesOrigin = process.env.PA
   res.setHeader('Cache-Control', 'no-store');
   try {
     const origin = req.headers.origin;
-    res.setHeader('Vary', 'Origin');
+    res.setHeader('Vary', 'Origin, Accept-Encoding');
     if (origin && origin === pagesOrigin) {
       res.setHeader('Access-Control-Allow-Origin', origin);
       if (req.method === 'OPTIONS') {
@@ -174,7 +177,18 @@ export async function serveMatch(req, res, service, pagesOrigin = process.env.PA
     }
     let data;
     try { data = JSON.parse(body); } catch { fail(400, 'Invalid request.'); }
-    res.end(JSON.stringify(service.request(data)));
+    const packet = JSON.stringify(service.request(data));
+    // Busy arenas send many repeated entity fields. Use fast compression for
+    // substantial snapshots while keeping lobby replies and moves inexpensive.
+    const gzipOffer = req.headers['accept-encoding']?.split(',').map(part => part.trim())
+      .find(part => /^gzip(?:\s*;|$)/i.test(part));
+    if (packet.length >= 1024 && gzipOffer && !/;\s*q\s*=\s*0(?:\.0*)?\s*$/i.test(gzipOffer)) {
+      const body = await gzipAsync(packet, { level: 1 });
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(body);
+    } else {
+      res.end(packet);
+    }
   } catch (err) {
     if (!err.status) console.error(err);
     res.statusCode = err.status || 500;

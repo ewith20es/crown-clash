@@ -25,24 +25,39 @@ export function snapshot(world, team) {
 export class OnlineWorld extends World {
   abilities() { return this.onlineAbilities; }
 
-  apply(frame) {
+  apply(frame, alpha = 1) {
     const previous = this._map;
     const { entities, abilities, ...state } = frame;
+    for (const field of ['projectiles', 'rollers']) {
+      if (!this[field].length || !state[field].length) continue;
+      const byId = new Map(this[field].map(effect => [effect.id, effect]));
+      for (const effect of state[field]) {
+        const old = byId.get(effect.id);
+        if (!old) continue;
+        effect.px = old.px + (old.x - old.px) * alpha;
+        effect.pz = old.pz + (old.z - old.pz) * alpha;
+        if (field === 'projectiles') effect.py = old.py + (old.y - old.py) * alpha;
+      }
+    }
     Object.assign(this, state);
     this.onlineAbilities = abilities;
     this._map = new Map();
-    this._structs = [];
+    this._structs.length = 0;
     for (const towers of this.towers) for (const tower of Object.values(towers)) tower.alive = false;
     this.entities = entities.map(row => {
-      const e = Object.fromEntries(entityFields.map((key, i) => [key, row[i]]));
+      const old = previous.get(row[0]);
+      const e = old || {};
+      const px = old && old.px + (old.x - old.px) * alpha;
+      const py = old && old.py + (old.y - old.py) * alpha;
+      const pz = old && old.pz + (old.z - old.pz) * alpha;
+      for (let i = 0; i < entityFields.length; i++) e[entityFields[i]] = row[i];
       e.def = UNITS[e.type];
       e.kind = e.def.kind;
       e.radius = e.def.radius;
       e.alive = true;
-      const old = previous.get(e.id);
-      e.px = old?.x ?? e.x;
-      e.py = old?.y ?? e.y;
-      e.pz = old?.z ?? e.z;
+      e.px = px ?? e.x;
+      e.py = py ?? e.y;
+      e.pz = pz ?? e.z;
       this._map.set(e.id, e);
       if (e.kind !== 'unit') this._structs.push(e);
       if (e.slot) this.towers[e.team][e.slot] = e;

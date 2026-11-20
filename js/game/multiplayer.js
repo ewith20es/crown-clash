@@ -1,6 +1,7 @@
 import { multiplayerServer } from '../../multiplayer-config.js';
 
 const unavailable = 'Could not reach the multiplayer server. Check your connection and try again.';
+const MATCH_UPDATE_MS = 100;
 
 function endpoint() {
   if (multiplayerServer) return new URL('/api/match', multiplayerServer);
@@ -10,8 +11,7 @@ function endpoint() {
   return new URL('./api/match', document.baseURI);
 }
 
-async function request(data) {
-  const abort = new AbortController();
+async function request(data, abort = new AbortController()) {
   const opening = ['create', 'find', 'join'].includes(data.op);
   const timer = setTimeout(() => abort.abort(), opening ? 90_000 : 8000);
   try {
@@ -50,6 +50,7 @@ export class Multiplayer {
     const s = this.session;
     if (!s) return;
     this.session = null;
+    s.readAbort?.abort();
     clearTimeout(s.timer);
     clearTimeout(s.wakeTimer);
     if (leave) request({ op: 'leave', token: s.token }).catch(() => {});
@@ -59,6 +60,9 @@ export class Multiplayer {
     const s = this.session;
     if (!s?.active || s.command) return false;
     s.command = { ...command, seq: s.seq + 1 };
+    // An outstanding state read has no move to acknowledge. Interrupt it so
+    // that an input does not have to wait for the remainder of a round trip.
+    s.readAbort?.abort();
     if (!s.busy) { clearTimeout(s.timer); this.poll(s); }
     return true;
   }
@@ -72,13 +76,21 @@ export class Multiplayer {
 
   async poll(s) {
     s.busy = true;
-    let delay = 150;
+    const started = performance.now();
+    const abort = new AbortController();
+    const reading = s.active && !s.command;
+    s.readAbort = reading ? abort : null;
+    let delay = MATCH_UPDATE_MS;
     let packet;
     try {
       packet = await request({ token: s.token, ...(s.first || { op: 'sync' }),
-        ready: s.active, cursor: s.cursor, command: s.command });
+        ready: s.active, cursor: s.cursor, command: s.command }, abort);
     } catch (err) {
       if (s !== this.session) return;
+      if (reading && s.command) {
+        s.readAbort = null;
+        return this.poll(s);
+      }
       if (s.first || err.status === 410 || Date.now() - s.lastOK > 45_000) {
         this.stop();
         this.callbacks.error(err.status ? err.message : unavailable);
@@ -94,6 +106,7 @@ export class Multiplayer {
       if (s.first && packet) request({ op: 'leave', token: s.token }).catch(() => {});
       return;
     }
+    s.readAbort = null;
     if (packet) {
       clearTimeout(s.wakeTimer);
       s.first = null;
@@ -114,7 +127,9 @@ export class Multiplayer {
         if (ack && !packet.accepted) this.callbacks.denied(ack);
         if (packet.frame.phase === 'ended') { this.stop(false); return; }
         if (s.quitting && !s.command) this.send({ type: 'surrender' });
-        if (s.command || first) delay = 0;
+        // Schedule against the start of the read. On slow networks we request
+        // the next frame as soon as this one finishes, without building a queue.
+        delay = s.command || first ? 0 : Math.max(0, MATCH_UPDATE_MS - (performance.now() - started));
       }
     }
     s.busy = false;

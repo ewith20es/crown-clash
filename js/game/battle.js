@@ -119,9 +119,11 @@ export class Battle {
   receive(packet) {
     const world = this.world;
     const elapsed = packet.frame.time - world.time;
-    world.apply(packet.frame);
-    this.snapshotInterval = Math.min(.5, Math.max(SIM_DT, elapsed));
-    this.alpha = 0;
+    // When an update arrives early, blend from the pose currently on screen.
+    // After a long disconnect, catch up immediately to the live positions.
+    world.apply(packet.frame, elapsed > .5 ? 1 : this.alpha);
+    this.snapshotInterval = elapsed > .5 ? SIM_DT : Math.max(SIM_DT, elapsed);
+    this.alpha = elapsed > .5 ? 1 : 0;
     this.running = packet.live && world.phase !== 'ended';
     this.handleEvents(packet.events);
     this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
@@ -271,7 +273,7 @@ export class Battle {
 
     this.syncViews(dt, time, this.alpha);
     this.fx.sync(world, this.alpha, time);
-    this.refreshHud(false);
+    if (!this.online) this.refreshHud(false);
   }
 
   refreshHud(force) {

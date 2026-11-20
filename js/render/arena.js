@@ -4,6 +4,7 @@ import { towerPosition } from '../config.js';
 import { DeployVeil, PlacementMarker } from './env/decals.js';
 import { createEntityView } from './models/index.js';
 import { IDLE_STATE } from './models/kit.js';
+import { GeoBag, trs } from './env/util.js';
 
 export class ArenaView {
   constructor(stage) {
@@ -13,11 +14,9 @@ export class ArenaView {
     this.root.name = 'royal-arena';
     stage.scene.background = new THREE.Color(0x102947);
     stage.scene.fog = new THREE.Fog(0x102947, 100, 240);
-    const addBox = (w, h, d, x, y, z, color) => {
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: .82 }));
-      mesh.position.set(x, y, z); mesh.receiveShadow = true; mesh.castShadow = true;
-      this.root.add(mesh); return mesh;
-    };
+    const masonry = new GeoBag();
+    const addBox = (w, h, d, x, y, z, color) =>
+      masonry.add(new THREE.BoxGeometry(w, h, d), color, { matrix: trs(x, y, z, 0, 0, 0) });
     addBox(23.2, 1.1, 33, 0, -.65, 0, 0x535f71);
     addBox(23.6, .28, 33.4, 0, -1.25, 0, 0xd2ad59);
     addBox(25.5, .6, 35.4, 0, -1.7, 0, 0x293a53);
@@ -64,6 +63,10 @@ export class ArenaView {
       addBox(.12, 3.8, .12, x, 1.3, z, 0xffd16d);
       addBox(1, 1.45, .08, x + (x < 0 ? -.48 : .48), 2.3, z, team ? 0xdf3d50 : 0x287cf0);
     }
+    const scenery = new THREE.Mesh(masonry.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .82 }));
+    scenery.receiveShadow = true;
+    scenery.castShadow = true;
+    this.root.add(scenery);
     this.preview = new THREE.Group();
     this.previewViews = [];
     for (const team of [0, 1]) for (const slot of ['left', 'right', 'citadel']) {
