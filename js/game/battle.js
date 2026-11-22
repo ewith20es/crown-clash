@@ -377,7 +377,7 @@ export class Battle {
       s.state = e.state;
       s.stateTime = e.stateTime;
       s.deployFrac = e.deployTime > 0 ? Math.min(1, Math.max(0, 1 - e.deployLeft / e.deployTime)) : 1;
-      s.moveSpeed = e.speedNow || 0;
+      s.moveSpeed = e.drawSpeed ?? e.speedNow ?? 0;
       s.attackT = e.attackT >= 0 ? e.attackT + alpha * SIM_DT : -1;
       s.windup = def.windup;
       s.hitSpeed = def.hitSpeed || 1;

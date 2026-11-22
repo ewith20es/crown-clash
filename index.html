@@ -18,17 +18,10 @@
     #game-canvas, #overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     #overlay-canvas { pointer-events: none; }
     #ui-root { position: absolute; inset: 0; pointer-events: none; }
-    #boot { position: absolute; inset: 0; z-index: 100; display: flex; flex-direction: column; align-items: center;
-      justify-content: center; gap: 22px; color: #cfe6ff; font: 700 15px/1.4 "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
-      letter-spacing: .08em; background: radial-gradient(120% 90% at 50% 35%, #1c2f6b 0%, #0b1230 62%, #060914 100%);
-      transition: opacity .5s ease; }
+    #boot { position: absolute; inset: 0; z-index: 100; background: black; transition: opacity .5s ease; }
     #boot.hide { opacity: 0; pointer-events: none; }
-    #boot .gem { width: 54px; height: 54px; transform: rotate(45deg); border-radius: 9px;
-      background: linear-gradient(135deg, #b8ecff 0%, #3aa2ff 48%, #1a3f9a 100%);
-      box-shadow: 0 0 34px #3aa2ffaa, inset 0 0 14px #ffffff66; animation: boot-pulse 1.3s ease-in-out infinite; }
-    #boot .name { font-size: 26px; font-weight: 900; letter-spacing: .22em; color: #fff; text-shadow: 0 2px 0 #12306e, 0 0 22px #3aa2ff88; }
-    #boot-msg { opacity: .8; text-transform: uppercase; font-size: 12px; max-width: 80vw; text-align: center; }
-    @keyframes boot-pulse { 0%, 100% { transform: rotate(45deg) scale(.92); } 50% { transform: rotate(45deg) scale(1.06); } }
+    #boot video { width: 100%; height: 100%; object-fit: contain; display: block; }
+    #boot-msg { position: absolute; bottom: 10%; width: 100%; text-align: center; background: #171717; }
   </style>
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/royale.css">
@@ -49,18 +42,32 @@
     <canvas id="overlay-canvas"></canvas>
     <div id="ui-root"></div>
     <div id="boot">
-      <div class="gem"></div>
-      <div class="name">CROWN CLASH</div>
-      <div id="boot-msg">Preparing the Royal Arena…</div>
+      <video id="boot-video" src="assets/loading.mp4" playsinline preload="auto" aria-label="Loading Crown Clash"></video>
+      <div id="boot-msg" role="status" hidden></div>
     </div>
   </div>
   <noscript>Crown Clash needs JavaScript and WebGL to run.</noscript>
   <script>
+    const intro = document.getElementById('boot-video');
+    window.introFinished = new Promise(resolve => {
+      intro.addEventListener('ended', resolve, { once: true });
+      intro.addEventListener('error', resolve, { once: true });
+      document.getElementById('boot').addEventListener('click', () => {
+        if (!intro.muted || intro.ended) return;
+        intro.muted = false;
+        intro.play().catch(resolve);
+      });
+      intro.play().catch(error => {
+        if (error.name !== 'NotAllowedError') { resolve(); return; }
+        intro.muted = true;
+        intro.play().catch(resolve);
+      });
+    });
     // Surface boot failures on the splash instead of a silent blank page.
     window.__bootError = function (msg) {
       var el = document.getElementById('boot-msg');
       var boot = document.getElementById('boot');
-      if (el && boot && !boot.classList.contains('hide')) { el.textContent = msg; el.style.color = '#ffb0a0'; }
+      if (el && boot && !boot.classList.contains('hide')) { el.hidden = false; el.textContent = msg; el.style.color = '#ffb0a0'; }
     };
     window.addEventListener('error', function (e) { window.__bootError('Could not start: ' + (e.message || 'script error')); });
     window.addEventListener('unhandledrejection', function (e) {

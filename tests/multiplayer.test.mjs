@@ -4,6 +4,9 @@ import http from 'node:http';
 import { MatchService, serveMatch } from '../tools/multiplayer.mjs';
 import { OnlineWorld, snapshot } from '../js/game/online-world.js';
 import { World } from '../js/sim/world.js';
+import { decodeUpdate, encodeUpdate, entityFields } from '../js/game/match-codec.js';
+import { Multiplayer } from '../js/game/multiplayer.js';
+import { SIM_DT } from '../js/config.js';
 import { DEFAULT_DECK } from '../js/data/cards.js';
 
 function arena() {
@@ -163,4 +166,172 @@ test('Pages origin can preflight and create a room on the separately hosted API'
   const refused = await fetch(url, { ...request, headers: { ...request.headers, Origin: 'https://another.example' } });
   assert.equal(refused.status, 403);
   assert.equal(refused.headers.get('Access-Control-Allow-Origin'), null);
+});
+
+test('compact frames recover lost updates and retain exact game state for each team', () => {
+  const { ask, advance } = arena();
+  ask(1, 'find'); ask(2, 'find');
+  const clients = [{}, {}];
+  function sync(team, fields = {}) {
+    const client = clients[team];
+    const { wire } = ask(team + 1, 'sync', { v: 1, base: client.serial, cursor: client.cursor, ...fields });
+    const { packet, baseline } = decodeUpdate(wire, client.baseline);
+    Object.assign(client, { baseline, serial: baseline.serial, cursor: packet.cursor });
+    return { packet, wire };
+  }
+  for (let t = 0; t < 2; t++) sync(t, { ready: true });
+  advance(1000);
+  for (let t = 0; t < 2; t++) {
+    const { packet } = sync(t);
+    const w = new OnlineWorld();
+    w.apply(packet.frame);
+    const index = w.players[t].hand.findIndex((_, i) => w.canPlay(t, i, 4, t ? -5 : 5).ok);
+    const command = { seq: 1, type: 'card', index, card: w.players[t].hand[index], x: 4, z: t ? -5 : 5 };
+    const { wire: lost } = ask(t + 1, 'sync', { v: 1, base: clients[t].serial, command });
+    assert.equal(lost[0], clients[t].serial);
+    // Repeat after losing the response, including when multiple actions share a sim tick.
+    const recovered = sync(t, { command });
+    assert.equal(recovered.wire[0], 0);
+    assert.equal(recovered.packet.frame.stats[t].cardsPlayed, 1);
+    assert.ok(recovered.packet.events.some(e => e.type === 'cardPlayed' && e.team === t));
+  }
+  for (let n = 0; n < 280; n++) {
+    advance(100);
+    const frames = clients.map((_, t) => {
+      const { packet, wire } = sync(t);
+      assert.ok(wire[0] > 0);
+      const actual = ask(t + 1, 'sync', { cursor: packet.cursor }).frame;
+      const f = packet.frame;
+      assert.deepEqual(f.players, actual.players);
+      assert.deepEqual(f.stats, actual.stats);
+      assert.deepEqual(f.abilities, actual.abilities);
+      assert.equal(f.phase, actual.phase);
+      assert.equal(f.winner, actual.winner);
+      assert.deepEqual(f.entities.map(e => e[0]), actual.entities.map(e => e[0]));
+      for (let i = 0; i < f.entities.length; i++) {
+        for (const [k, key] of entityFields.entries()) {
+          const v = f.entities[i][k], expected = actual.entities[i][k];
+          if (v !== expected) {
+            assert.ok(['x','y','z','facing','stateTime','attackT','deployLeft','lifeLeft','speedNow','rampT','hop'].includes(key), key);
+            assert.ok(Math.abs(v - expected) <= .001, key);
+          }
+        }
+      }
+      return f;
+    });
+    assert.deepEqual(frames[0].entities, frames[1].entities);
+    assert.deepEqual(frames[0].projectiles, frames[1].projectiles);
+  }
+});
+
+test('delta size depends on what moved, and expired entities disappear from the client', () => {
+  const w = new World();
+  const troop = w.addEntity('mite', 0, 4, 6);
+  const meta = { live: true, seq: 0, cursor: 0, events: [] };
+  let server, client, serial = 0;
+  const next = () => {
+    const result = encodeUpdate(w, 0, meta, ++serial, server);
+    const wire = JSON.parse(JSON.stringify(result.wire));
+    const decoded = decodeUpdate(wire, client);
+    server = result.baseline;
+    client = decoded.baseline;
+    return { wire, frame: decoded.packet.frame };
+  };
+  next();
+  assert.ok(JSON.stringify(next().wire).length < 20);
+  troop.z -= .05;
+  const move = next();
+  assert.ok(JSON.stringify(move.wire).length < 40);
+  assert.equal(move.wire[3].length, 1);
+  assert.throws(() => decodeUpdate(move.wire, null), /Missing arena update/);
+  w._kill(troop);
+  w.step();
+  const removed = next();
+  assert.ok(removed.wire[3].includes(-troop.id));
+  assert.ok(!removed.frame.entities.some(e => e[0] === troop.id));
+});
+
+test('steady walks continue through a delayed stream update and stop on a prolonged outage', () => {
+  const server = new World(), view = new OnlineWorld();
+  const troop = server.addEntity('mite', 0, 0, 6);
+  Object.assign(troop, { state: 'move', speedNow: 1 });
+  let last = 0;
+  for (let frame = 0; frame < 180; frame++) {
+    if (frame % 4 === 0 && (frame < 112 || frame >= 122)) {
+      server.time = frame / 60;
+      troop.x = server.time;
+      view.apply(snapshot(server, 0));
+    }
+    view.updateMovement(1 / 60);
+    const now = view.getEntity(troop.id).drawX;
+    if (frame > 60) assert.ok(now > last && now - last < .024, 'abrupt stride at frame ' + frame);
+    last = now;
+  }
+  for (let i = 0; i < 90; i++) view.updateMovement(1 / 60);
+  const e = view.getEntity(troop.id);
+  assert.ok(e.drawX <= e.x + .171);
+  assert.ok(e.drawSpeed < 1e-9);
+  server.time += 2;
+  troop.x = 4;
+  view.apply(snapshot(server, 0));
+  view.updateMovement(1 / 60);
+  assert.equal(e.drawX, 4);
+});
+
+test('two clients stream a match and recover a broken stream and lost move reply', async t => {
+  const service = new MatchService();
+  const streams = new Map();
+  const server = http.createServer((req, res) => serveMatch(req, res, service));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const url = 'http://127.0.0.1:' + server.address().port + '/api/match';
+  const ticker = setInterval(() => service.maintain(), 1000 * SIM_DT);
+  const fetchLocal = globalThis.fetch;
+  let dropAck = true;
+  t.mock.method(globalThis, 'fetch', async (_endpoint, options) => {
+    const data = JSON.parse(options.body);
+    const response = await fetchLocal(url, options);
+    if (data.op === 'watch') streams.set(data.token, response.headers.get('content-encoding'));
+    if (data.ackOnly && dropAck) {
+      dropAck = false;
+      await response.text();
+      throw Error('Lost response');
+    }
+    return response;
+  });
+  const views = [new OnlineWorld(), new OnlineWorld()];
+  const frames = [], errors = [];
+  const clients = views.map((view, i) => new Multiplayer({
+    wait() {}, connection() {}, denied() { errors.push('move denied'); }, error(e) { errors.push(e); },
+    frame(packet) { view.apply(packet.frame); frames[i] = packet; },
+  }));
+  t.after(() => {
+    for (const c of clients) c.stop(false);
+    clearInterval(ticker);
+    server.closeAllConnections();
+    return new Promise(resolve => server.close(resolve));
+  });
+  async function until(fn) {
+    const deadline = Date.now() + 6000;
+    while (!fn()) {
+      assert.deepEqual(errors, []);
+      assert.ok(Date.now() < deadline, 'timed out waiting for match');
+      await new Promise(resolve => setTimeout(resolve, 15));
+    }
+  }
+  for (const client of clients) client.start('find', { deck: DEFAULT_DECK, towerTroop: 'tower-princess' });
+  await until(() => frames[0]?.live && frames[1]?.live);
+  assert.deepEqual([...streams.values()], ['gzip', 'gzip']);
+  const team = frames[0].team, z = team ? -6 : 6;
+  const hand = views[0].players[team].hand;
+  const index = hand.findIndex((_, i) => views[0].canPlay(team, i, 4, z).ok);
+  assert.ok(clients[0].send({ type: 'card', index, card: hand[index], x: 4, z }));
+  await until(() => views.every(v => v.stats[team].cardsPlayed === 1) && !clients[0].session.command);
+  assert.equal(dropAck, false);
+  clients[1].session.stream.abort(); // proxy disconnects mid-match
+  await until(() => clients[1].session.pollOnly && !clients[1].session.stream);
+  clients[1].surrender();
+  await until(() => views.every(v => v.phase === 'ended'));
+  assert.deepEqual(views.map(v => [v.winner, v.endReason, v.stats[team].cardsPlayed]),
+    [[team, 'surrender', 1], [team, 'surrender', 1]]);
+  assert.deepEqual(errors, []);
 });

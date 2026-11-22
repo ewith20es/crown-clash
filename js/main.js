@@ -60,6 +60,7 @@ class Game {
         play: () => this.startMatch(),
         towerChange: (id) => {this.state.towerTroop=id;saveState(this.state);},
         ability: id => this.battle.activateAbility(id),
+        onlineOpen: () => this.online.wake(),
         onlineStart: (op, code) => this.online.start(op, { deck: this.state.deck, towerTroop: this.state.towerTroop }, code),
         onlineCancel: () => this.online.stop(),
         onlineClose: () => { if (!this.online.session?.active) this.online.stop(); },
@@ -147,6 +148,7 @@ class Game {
     } catch (err) {
       console.warn('Card portraits could not be loaded', err);
     }
+    await Promise.race([window.introFinished, new Promise(resolve => setTimeout(resolve, 8000))]);
     this.ui.hideBoot();
     this.audio.music('menu');
     if (params.has('autostart') || params.has('autoplay')) this.startMatch();

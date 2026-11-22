@@ -579,7 +579,10 @@ export class UI {
     if (!this.panels[name] || this._screen !== 'menu' || this.panelName === name) return;
     if (this.panelName) this.closePanel(true);
     this._sound('open');
-    if (name === 'online') this.onlinePanel.show();
+    if (name === 'online') {
+      this.onlinePanel.show();
+      this._emit('onlineOpen');
+    }
     if (name === 'deck') this.deckBuilder.open();
     else if (name === 'settings') this.settingsPanel.refresh();
     for (const k of Object.keys(this.panels)) this.panels[k].classList.toggle('is-current', k === name);
