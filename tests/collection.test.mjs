@@ -60,6 +60,28 @@ for(const c of CARDS.filter(c=>c.ability))test(`${c.name} ability spends elixir 
   for(const v of w.entities)assert.ok(Number.isFinite(v.hp)&&Number.isFinite(v.x)&&Number.isFinite(v.z));
 });
 
+for (const [type, hits] of [['ice-spirit', 1], ['ice-spirit-evolution', 2]]) {
+  test(`${type} bursts once on contact and the tower thaws after its last freeze`, () => {
+    const w = new World();
+    const tower = w.towers[1].left;
+    const spirit = w.addEntity(type, 0, tower.x, tower.z + 2.5);
+    const damage = spirit.def.dmg;
+    run(w, .5);
+    assert.equal(spirit.alive, false);
+    assert.equal(tower.hp, tower.maxHp - damage);
+    assert.ok(tower.frozen > 0 && tower.frozen <= 1.1);
+    run(w, 2);
+    assert.equal(tower.frozen, 0);
+    run(w, 1);
+    assert.equal(tower.hp, tower.maxHp - hits * damage);
+    assert.equal(tower.frozen > 0, hits === 2);
+    run(w, 7);
+    assert.equal(tower.frozen, 0);
+    assert.equal(tower.hp, tower.maxHp - hits * damage);
+    assert.equal(w.pending.length, 0);
+  });
+}
+
 test('mixed groups preserve Goblin/Spear Goblin, Rascal and Monster bodies',()=>{
   const w=world();play(w,'goblin-gang');
   assert.equal(w.entities.filter(e=>e.type==='goblin-gang'&&e.hp===202).length,3);

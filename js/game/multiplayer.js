@@ -32,8 +32,8 @@ async function request(data, abort = new AbortController()) {
   } finally { clearTimeout(timer); }
 }
 
-// A player has one state reader and at most one unacknowledged move.
-// Retries keep their original sequence number across transport changes.
+// Send locally paid drops in order. Only the head can reach the server, so
+// retries keep their sequence and a rejected drop can cancel dependent cards.
 export class Multiplayer {
   constructor(callbacks) { this.callbacks = callbacks; }
 
@@ -48,8 +48,8 @@ export class Multiplayer {
     this.stop();
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     const token = Array.from(bytes, n => n.toString(16).padStart(2, '0')).join('');
-    const session = { token, first: { op, ...loadout, code }, active: false, seq: 0, cursor: 0,
-      lastOK: Date.now(), busy: false, command: null };
+    const session = { token, first: { op, ...loadout, code, localElixir: true }, active: false, seq: 0, cursor: 0,
+      lastOK: Date.now(), busy: false, command: null, queue: [] };
     this.session = session;
     this.callbacks.wait('Connecting to the arena…');
     session.wakeTimer = setTimeout(() => {
@@ -72,14 +72,21 @@ export class Multiplayer {
 
   send(command) {
     const s = this.session;
-    if (!s?.active || s.command) return false;
-    s.command = { ...command, seq: s.seq + 1 };
-    if (s.stream) { this.postMove(s, s.command); return true; }
+    if (!s?.active || (s.quitting && command.type !== 'surrender')) return false;
+    if (s.command && command.type !== 'card') return false;
+    const seq = (s.queue.at(-1)?.seq ?? s.command?.seq ?? s.seq) + 1;
+    const move = { ...command, seq };
+    if (s.command) {
+      s.queue.push(move);
+      return seq;
+    }
+    s.command = move;
+    if (s.stream) { this.postMove(s, move); return seq; }
     // An outstanding state read has no move to acknowledge. Interrupt it so
     // that an input does not have to wait for the remainder of a round trip.
     s.readAbort?.abort();
     if (!s.busy) { clearTimeout(s.timer); this.poll(s); }
-    return true;
+    return seq;
   }
 
   surrender() {
@@ -110,7 +117,12 @@ export class Multiplayer {
     s.seq = packet.seq;
     s.lastOK = Date.now();
     const ack = s.command && packet.seq === s.command.seq ? s.command : null;
-    if (ack) { s.command = null; clearTimeout(s.retryMove); }
+    if (ack) {
+      clearTimeout(s.retryMove);
+      if (!packet.accepted) s.queue.length = 0;
+      s.command = s.queue.shift() ?? null;
+      if (s.command && s.stream && packet.frame.phase !== 'ended') this.postMove(s, s.command);
+    }
     this.callbacks.frame(packet, first);
     this.callbacks.connection(packet.live || packet.frame.phase === 'ended' ? '' : 'Waiting for both players to be ready.');
     if (ack && !packet.accepted) this.callbacks.denied(ack);

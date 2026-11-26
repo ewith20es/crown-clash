@@ -62,7 +62,6 @@ export class UI {
     this.state = normalizeState(o.state);
 
     this._screen = 'menu';
-    this._howtoDone = false;
     this.panelName = null;
     this.modalOpen = false;
     this.info = { playerName: 'You', enemyName: 'Rival', enemyTitle: '' };
@@ -360,6 +359,7 @@ export class UI {
     this.settingsPanel = new SettingsPanel({
       ...base,
       getSettings: () => this.state.settings,
+      learningStatus: () => this._emit('learningStatus'),
       change: (s) => this._setSettings(s),
     });
     this.howtoPanel = new HowToPanel(base);
@@ -496,10 +496,38 @@ export class UI {
   showMenu() {
     this._setScreen('menu');
     this._refreshMenu();
-    if (this.state.firstRun && !this._howtoDone) {
-      this._howtoDone = true;
-      this.openPanel('howto');
+  }
+
+  showWelcome(offerSoloTraining) {
+    const finishWelcome = () => {
+      if (this.state.firstRun) {
+        this.openPanel('howto');
+        this.howtoPanel.el.querySelector('button').focus({ preventScroll: true });
+      } else if (offerSoloTraining) {
+        this.battleBtn.focus({ preventScroll: true });
+      }
+    };
+    if (!offerSoloTraining) {
+      finishWelcome();
+      return;
     }
+
+    const dialog = h('dialog', {
+      class: 'modal training-prompt', 'aria-labelledby': 'training-prompt-title', 'aria-describedby': 'training-prompt-desc',
+      onclose: () => {
+        if (dialog.returnValue === 'enable') this._setSettings({ soloTrainingServer: true });
+        dialog.remove();
+        finishWelcome();
+      },
+    },
+    h('h2', { class: 'modal__title', id: 'training-prompt-title', tabindex: '-1', autofocus: true, text: 'Help train the rival?' }),
+    h('p', { class: 'modal__text', id: 'training-prompt-desc',
+      text: 'Turn on “Use training server in solo” to share a small training update after solo matches. Your card plays help improve the rival for everyone. You can change this anytime in Settings.' }),
+    h('form', { class: 'modal__actions', method: 'dialog' },
+      h('button', { class: 'btn btn--steel', type: 'submit', value: 'skip', text: 'No thanks' }),
+      h('button', { class: 'btn btn--gold', type: 'submit', value: 'enable', text: 'Turn on' })));
+    this.root.append(dialog);
+    dialog.showModal();
   }
 
   showBattle(info) {

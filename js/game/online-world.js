@@ -1,5 +1,6 @@
-import { World } from '../sim/world.js';
+import { World, cycleHand } from '../sim/world.js';
 import { UNITS } from '../data/cards.js';
+import { MATCH, elixirGain } from '../config.js';
 
 import { entityFields } from './match-codec.js';
 
@@ -36,7 +37,54 @@ export function snapshot(world, team) {
 }
 
 export class OnlineWorld extends World {
-  abilities() { return this.onlineAbilities; }
+  abilities(team) {
+    return this.onlineAbilities.map(a => a.ready && this.players[team].aether < a.cost ? { ...a, ready: false } : a);
+  }
+
+  spend(team, move) {
+    const p = this.players[team];
+    this.balance = p.aether = Math.max(0, this.balance - move.cost);
+    if (move.card) cycleHand(p, move.handIndex, move.card);
+  }
+
+  advanceElixir(time) {
+    if (time <= this.elixirTime) return;
+    this.balance = Math.min(MATCH.AETHER_MAX, this.balance + elixirGain(time - this.elixirTime, this.elixirPhase));
+    this.elixirTime = time;
+  }
+
+  syncElixir(packet, pending, rejected) {
+    const { team, frame } = packet;
+    const raw = frame.players[team];
+    // Hand arrays in an unchanged delta still belong to the decoder's baseline.
+    const p = { ...raw, hand: raw.hand.slice(), queue: raw.queue.slice(), cycles: { ...raw.cycles } };
+    this.players = this.players.slice();
+    this.players[team] = p;
+    // An acknowledgement includes the paid card. Earlier frames still need
+    // every outstanding local spend applied to the server's checkpoint.
+    const checkpoint = frame.elixirCheckpoint;
+    const reset = !checkpoint || checkpoint !== this.lastCheckpoint || rejected ||
+      this.lastSeq !== packet.seq || frame.phase === 'ended' || Math.abs(frame.time - this.elixirTime) > 2;
+    if (reset) {
+      this.balance = raw.aether;
+      this.elixirTime = frame.time;
+    } else {
+      this.advanceElixir(frame.time);
+    }
+    this.lastCheckpoint = checkpoint;
+    this.lastSeq = packet.seq;
+    this.elixirPhase = frame.phase;
+    for (const move of pending) {
+      if (reset) this.balance = Math.max(0, this.balance - move.cost);
+      if (move.card) cycleHand(p, move.handIndex, move.card);
+    }
+    p.aether = this.balance;
+  }
+
+  refillElixir(team) {
+    this.advanceElixir(this.time + this.elapsedSinceFrame);
+    this.players[team].aether = this.balance;
+  }
 
   apply(frame, alpha = 1) {
     const gap = frame.time - this.time;
@@ -52,9 +100,9 @@ export class OnlineWorld extends World {
       const error = frame.time - this.motionDelay - this.motionTime;
       this.motionRate = Math.max(.9, Math.min(1.1, 1 + error));
     }
-    this.elapsedSinceFrame = 0;
+    if (resetMotion || gap > 0 || frame.time === 0) this.elapsedSinceFrame = 0;
     const previous = this._map;
-    const { entities, abilities, ...state } = frame;
+    const { entities, abilities, elixirCheckpoint, ...state } = frame;
     for (const field of ['projectiles', 'rollers']) {
       if (!this[field].length || !state[field].length) continue;
       const byId = new Map(this[field].map(effect => [effect.id, effect]));

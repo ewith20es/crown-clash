@@ -32,6 +32,11 @@ export class SettingsPanel {
 
     this.sfxSw = this.toggle('Sound effects', () => this.set({ sfx: !this.ctx.getSettings().sfx }, 'click'));
     this.musicSw = this.toggle('Music', () => this.set({ music: !this.ctx.getSettings().music }, 'click'));
+    this.learningSw = this.toggle('Learn from my matches', () => this.set({ learning: !this.ctx.getSettings().learning }, 'click'));
+    this.learningCount = h('small');
+    this.soloServerSw = this.toggle('Use training server in solo', () =>
+      this.set({ soloTrainingServer: !this.ctx.getSettings().soloTrainingServer }, 'click'));
+    this.soloServerHint = h('small');
 
     this.el = h('section', { class: 'panel panel--settings', 'aria-labelledby': 'ui-settings-title' },
       panelHead('Settings', 'ui-settings-title', close),
@@ -46,6 +51,14 @@ export class SettingsPanel {
         h('div', { class: 'set-row' },
           h('div', { class: 'set-row__label' }, h('span', { class: 'set-row__icon', html: icon('music') }), h('b', { text: 'Music' })),
           this.musicSw),
+        h('div', { class: 'set-row' },
+          h('div', { class: 'set-row__label' }, h('span', { class: 'set-row__icon', html: icon('cards') }),
+            h('span', null, h('b', { text: 'Learn from my matches' }), this.learningCount)),
+          this.learningSw),
+        h('div', { class: 'set-row' },
+          h('div', { class: 'set-row__label' }, h('span', { class: 'set-row__icon', html: icon('cards') }),
+            h('span', null, h('b', { text: 'Use training server in solo' }), this.soloServerHint)),
+          this.soloServerSw),
         h('p', { class: 'fan-notice', text: 'Unofficial fan game. Not affiliated with or endorsed by Supercell. Arena art from Crown Clash; Clash Royale card portraits via RoyaleAPI. See assets/LICENSE and assets/royale-cards/README.md.' })),
       h('footer', { class: 'panel__foot' },
         h('button', { class: 'btn btn--gold', type: 'button', 'aria-label': 'Done', onclick: close }, h('span', { text: 'Done' }))));
@@ -72,7 +85,13 @@ export class SettingsPanel {
       this.qBtns[q].setAttribute('aria-checked', on ? 'true' : 'false');
       if (on) this.qSeg.style.setProperty('--i', String(i));
     });
-    for (const [sw, on] of [[this.sfxSw, s.sfx], [this.musicSw, s.music]]) {
+    this.learningCount.textContent = this.ctx.learningStatus() || '';
+    this.soloServerSw.disabled = !s.learning;
+    this.soloServerHint.textContent = s.learning
+      ? 'Wake the server at battle start. Share learning after the match.'
+      : 'Turn on “Learn from my matches” to use this setting.';
+    for (const [sw, on] of [[this.sfxSw, s.sfx], [this.musicSw, s.music], [this.learningSw, s.learning],
+      [this.soloServerSw, s.learning && s.soloTrainingServer]]) {
       sw.classList.toggle('is-on', !!on);
       sw.setAttribute('aria-checked', on ? 'true' : 'false');
     }

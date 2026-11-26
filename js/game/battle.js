@@ -1,10 +1,13 @@
 // One match: owns the simulation, the AI, and the 3-D views of every entity, and translates
 // simulation events into camera shakes, banners, sounds and effects.
 import * as THREE from 'three';
-import { SIM_DT, MATCH, TEAMS, UNIT_VISUAL_SCALE } from '../config.js';
+import { ARENA, SIM_DT, MATCH, TEAMS, UNIT_VISUAL_SCALE } from '../config.js';
 import { World } from '../sim/world.js';
 import { OnlineWorld } from './online-world.js';
 import { Bot } from '../ai/bot.js';
+import { createRival } from '../ai/neural-rival.js';
+import { MatchLearning, describeMove } from '../ai/live-learning.js';
+import { IDLE_STATE } from '../render/models/kit.js';
 import { createEntityView, createRuinView } from '../render/models/index.js';
 import { UNITS, CARD_BY_ID } from '../data/cards.js';
 
@@ -89,6 +92,7 @@ export class Battle {
     this.audio = ctx.audio;
     this.ui = ctx.ui;
     this.onEnd = ctx.onEnd || (() => {});
+    this.learning = ctx.learning;
 
     this.player = PLAYER;
     this.online = null;
@@ -104,6 +108,7 @@ export class Battle {
 
     this.views = new Map();   // entity id → record
     this.dying = [];
+    this.pendingMoves = new Map();
     this.ruins = [];
     this.stamp = 0;
     this.handSig = '';
@@ -118,8 +123,11 @@ export class Battle {
 
   start({ deck, towerTroop, opponent, difficulty, seed, autoplay = false, speed = 1 }) {
     this.cleanup();
+    this.learning.beginSolo(autoplay);
     this.world = new World({ seed, decks: [deck, opponent.deck], towerTroops: [towerTroop,'tower-princess'] });
-    this.bot = new Bot(this.world, ENEMY, { difficulty, seed: seed + 7 });
+    const head = this.learning.head();
+    this.bot = createRival(this.world, ENEMY, { difficulty, seed: seed + 7, head });
+    if (!autoplay && this.learning.enabled) this.lesson = new MatchLearning(head);
     this.autoBot = autoplay ? new Bot(this.world, PLAYER, { difficulty: 'hard', seed: seed + 13 }) : null;
     this.opponent = opponent;
     this.difficulty = difficulty;
@@ -140,6 +148,7 @@ export class Battle {
     this.online = online;
     this.player = packet.team;
     this.world = new OnlineWorld();
+    if (this.learning.enabled) this.lesson = new MatchLearning(this.learning.head());
     this.intro = 0;
     this.ended = false;
     this.surrendered = false;
@@ -149,12 +158,30 @@ export class Battle {
 
   receive(packet) {
     const world = this.world;
+    const ack = this.pendingMoves.get(packet.seq);
+    const rejected = !!ack && !packet.accepted;
     const elapsed = packet.frame.time - world.time;
     // When an update arrives early, blend from the pose currently on screen.
     // After a long disconnect, catch up immediately to the live positions.
-    world.apply(packet.frame, elapsed > .5 ? 1 : this.alpha);
-    this.snapshotInterval = elapsed > .5 ? SIM_DT : Math.max(SIM_DT, elapsed);
-    this.alpha = elapsed > .5 ? 1 : 0;
+    const sameTick = elapsed === 0 && world.motionTime !== undefined;
+    // A command can arrive between simulation ticks. Preserve the interpolation
+    // interval of projectiles already in flight while applying the new troops.
+    const blendFrom = sameTick ? 0 : elapsed > .5 ? 1 : this.alpha;
+    world.apply(packet.frame, blendFrom);
+    if (ack && packet.accepted) {
+      if (ack.signal) this.lesson?.record(ack.signal);
+      if (ack.placement) this.settlePlacement(packet, ack.placement);
+    }
+    for (const [seq, move] of this.pendingMoves) {
+      if (seq > packet.seq && !rejected && world.phase !== 'ended') continue;
+      this.clearPlacement(move.placement);
+      this.pendingMoves.delete(seq);
+    }
+    world.syncElixir(packet, this.pendingMoves.values(), rejected);
+    if (!sameTick) {
+      this.snapshotInterval = elapsed > .5 ? SIM_DT : Math.max(SIM_DT, elapsed);
+      this.alpha = elapsed > .5 ? 1 : 0;
+    }
     this.running = packet.live && world.phase !== 'ended';
     this.handleEvents(packet.events);
     this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
@@ -165,8 +192,16 @@ export class Battle {
 
   activateAbility(id) {
     if (!this.canPlayerAct()) return;
-    if (this.online) this.online.send({ type: 'ability', id });
-    else this.world.activateAbility(this.player, id);
+    if (this.online) {
+      const ability = this.world.abilities(this.player).find(a => a.id === id);
+      if (!ability?.ready) return;
+      const seq = this.online.send({ type: 'ability', id });
+      if (!seq) return;
+      const move = { cost: ability.cost };
+      this.pendingMoves.set(seq, move);
+      this.world.spend(this.player, move);
+      this.refreshHud(false);
+    } else this.world.activateAbility(this.player, id);
   }
 
   /**
@@ -212,6 +247,9 @@ export class Battle {
 
   /** Remove every view and effect. Safe to call at any time. */
   cleanup() {
+    if (this.world && !this.online) this.learning.endSolo();
+    for (const move of this.pendingMoves.values()) this.clearPlacement(move.placement);
+    this.pendingMoves.clear();
     const scene = this.stage.scene;
     for (const rec of this.views.values()) {
       scene.remove(rec.view.root);
@@ -224,6 +262,7 @@ export class Battle {
     for (const r of this.ruins) scene.remove(r);
     this.ruins.length = 0;
     this.fx.reset();
+    this.lesson = null;
     this.overlay.reset();
     this.player = PLAYER;
     this.online = null;
@@ -248,14 +287,89 @@ export class Battle {
       if (res.reason === 'space') this.ui.hint('No free deployment tile');
       return false;
     }
-    const ok = this.online
-      ? this.online.send({ type: 'card', card: res.card.id, index: handIndex, x, z })
-      : this.world.playCard(this.player, handIndex, x, z);
-    if (ok) {
-      this.ui.flashCard(handIndex, 'played');
-      this.ui.hint(null);
+    if (this.online) {
+      const command = { type: 'card', card: res.card.id, index: handIndex, x, z };
+      if (res.card.dualForm) command.boosted = res.cost === res.card.dualForm.cost;
+      const seq = this.online.send(command);
+      if (!seq) return false;
+      const move = { handIndex, card: res.card, cost: res.cost,
+        signal: this.lesson && describeMove(this.world, this.player, handIndex, res, this.lesson.head) };
+      this.pendingMoves.set(seq, move);
+      this.world.spend(this.player, move);
+      this.refreshHud(false);
+      move.placement = this.startPlacement(res, handIndex);
+      this.audio.handleEvents([{ type: 'cardPlayed', team: this.player, x: res.x }], this.world, this.player);
+    } else {
+      const signal = this.lesson && describeMove(this.world, this.player, handIndex, res, this.lesson.head);
+      if (!this.world.playCard(this.player, handIndex, x, z)) return false;
+      this.lesson?.record(signal);
     }
-    return ok;
+    this.ui.flashCard(handIndex, 'played');
+    this.ui.hint(null);
+    return true;
+  }
+
+  // These views are local to the renderer. The server supplies every actual
+  // entity, including its ID, final placement, and the tick it can start acting.
+  startPlacement(move, handIndex) {
+    const card = move.deployment;
+    if (card.type === 'spell' || UNITS[card.unit].deployAnywhere) {
+      // Acknowledge the tapped tile while the server schedules its spell or tunnel.
+      this.fx.shockwave(move.x, move.z, .9, ringColors[this.player].toArray(), .3);
+      return;
+    }
+    const team = this.player, facing = team === PLAYER ? Math.PI : 0;
+    const members = this.world.deploymentPositions(card, team, move.x, move.z);
+    for (const member of members) {
+      const def = UNITS[member.unit];
+      member.rec = this.createView(member.unit, team, facing);
+      member.rec.view.root.position.set(member.x, def.flying ? ARENA.FLY_HEIGHT : 0, member.z);
+      member.duration = def.deployTime + member.delay;
+    }
+    const placement = { handIndex, cardId: card.id, members, age: 0 };
+    this.animatePlacement(placement, 0, 0);
+    return placement;
+  }
+
+  animatePlacement(placement, dt, time) {
+    placement.age += dt;
+    const pose = this.deployPose ??= { ...IDLE_STATE, state: 'deploy' };
+    pose.time = time;
+    pose.stateTime = placement.age;
+    for (const { rec, duration } of placement.members) {
+      pose.deployFrac = duration > 0 ? Math.min(1, placement.age / duration) : 1;
+      rec.view.update(dt, pose);
+    }
+  }
+
+  settlePlacement(packet, p) {
+    // Direct deployments emit cardPlayed followed by each formation member's
+    // spawn. If history expired on reconnect, rebuild from the current frame.
+    const played = packet.events.findIndex(e => e.type === 'cardPlayed' && e.team === this.player &&
+      e.handIndex === p.handIndex && e.cardId === p.cardId);
+    if (played < 0) return;
+    for (let i = 0; i < p.members.length; i++) {
+      const member = p.members[i];
+      const spawn = packet.events[played + 1 + i];
+      if (spawn?.type !== 'spawn' || spawn.team !== this.player || spawn.entType !== member.unit) break;
+      const e = this.world.getEntity(spawn.id);
+      if (!e || e.cardId !== p.cardId || this.views.has(e.id)) continue;
+      const rec = member.rec;
+      rec.x = e.x; rec.y = e.y; rec.z = e.z;
+      const left = e.deployLeft;
+      if (left > 0) rec.deployLead = Math.min(1, Math.max(0, (p.age - (e.deployTime - left)) / left));
+      this.views.set(e.id, rec);
+      member.rec = null;
+    }
+  }
+
+  clearPlacement(placement) {
+    if (!placement) return;
+    for (const { rec } of placement.members) {
+      if (!rec) continue;
+      this.stage.scene.remove(rec.view.root);
+      rec.view.dispose();
+    }
   }
 
   surrender() {
@@ -282,6 +396,16 @@ export class Battle {
 
     if (this.online) {
       world.updateMovement(dt);
+      if (this.running) {
+        const before = Math.floor(world.players[this.player].aether);
+        world.refillElixir(this.player);
+        const balance = world.players[this.player].aether;
+        if (before !== Math.floor(balance)) this.refreshHud(false);
+        else this.ui.setAether(balance, MATCH.AETHER_MAX);
+      }
+      for (const move of this.pendingMoves.values()) {
+        if (move.placement) this.animatePlacement(move.placement, dt, time);
+      }
       this.alpha = Math.min(1, this.alpha + dt / this.snapshotInterval);
     } else if (this.running) {
       this.acc += dt * this.speed;
@@ -331,6 +455,16 @@ export class Battle {
     if (force) this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
   }
 
+  createView(type, team, facing) {
+    const view = createEntityView(type, team);
+    const kind = UNITS[type].kind;
+    const base = kind === 'unit' ? UNIT_VISUAL_SCALE : 1;
+    if (kind === 'unit') view.root.scale.setScalar(base);
+    view.root.rotation.y = kind === 'unit' ? facing : team === PLAYER ? Math.PI : 0;
+    this.stage.scene.add(view.root);
+    return { view, yaw: facing, kind, base };
+  }
+
   syncViews(dt, time, alpha) {
     const world = this.world;
     const scene = this.stage.scene;
@@ -344,15 +478,7 @@ export class Battle {
       const e = ents[i];
       let rec = this.views.get(e.id);
       if (!rec) {
-        const view = createEntityView(e.type, e.team);
-        rec = { view, yaw: e.facing, stamp, kind: e.kind, x: e.x, y: e.y, z: e.z, base: 1 };
-        if (e.kind !== 'unit') {
-          view.root.rotation.y = e.team === PLAYER ? Math.PI : 0;
-        } else {
-          rec.base = UNIT_VISUAL_SCALE;
-          view.root.scale.setScalar(UNIT_VISUAL_SCALE);
-        }
-        scene.add(view.root);
+        rec = this.createView(e.type, e.team, e.facing);
         this.views.set(e.id, rec);
       }
       rec.stamp = stamp;
@@ -363,10 +489,16 @@ export class Battle {
       rec.x = x; rec.y = y; rec.z = z;
       const root = rec.view.root;
       root.position.set(x, y, z);
+      let dep = 1;
+      if (e.deployLeft > 0 && e.deployTime > 0) {
+        const elapsed = this.online && !(e.frozen > 0 || e.stunned > 0) ? Math.min(.1, world.elapsedSinceFrame) : 0;
+        dep = Math.max(0, Math.min(1, 1 - (e.deployLeft - elapsed) / e.deployTime));
+        // Taper the local head start to zero at the authoritative end of deploy.
+        if (this.online) dep = rec.deployShown = Math.max(rec.deployShown || 0, dep + (1 - dep) * (rec.deployLead || 0));
+      }
       if (e.kind === 'unit') {
         rec.yaw = dampAngle(rec.yaw, e.drawFacing ?? e.facing, 16, dt);
         root.rotation.y = rec.yaw;
-        const dep = e.deployTime > 0 ? Math.min(1, Math.max(0, 1 - e.deployLeft / e.deployTime)) : 1;
         if (dep > 0.05) {
           const radius = Math.max(0.3, e.radius * UNIT_VISUAL_SCALE * 1.05);
           this.rings.add(e.team, x, z, radius * (0.6 + 0.4 * dep));
@@ -376,7 +508,7 @@ export class Battle {
       const def = e.def;
       s.state = e.state;
       s.stateTime = e.stateTime;
-      s.deployFrac = e.deployTime > 0 ? Math.min(1, Math.max(0, 1 - e.deployLeft / e.deployTime)) : 1;
+      s.deployFrac = dep;
       s.moveSpeed = e.drawSpeed ?? e.speedNow ?? 0;
       s.attackT = e.attackT >= 0 ? e.attackT + alpha * SIM_DT : -1;
       s.windup = def.windup;
@@ -487,7 +619,10 @@ export class Battle {
     }
     this.fx.handleEvents(events, world);
     this.overlay.handleEvents(events, world);
-    audio.handleEvents(events, world, this.player);
+    // The local player already heard the placement on release.
+    const sounds = this.online && events.some(e => e.type === 'cardPlayed' && e.team === this.player)
+      ? events.filter(e => e.type !== 'cardPlayed' || e.team !== this.player) : events;
+    audio.handleEvents(sounds, world, this.player);
   }
 
   finish(ev) {
@@ -495,6 +630,9 @@ export class Battle {
     this.ended = true;
     const world = this.world;
     const outcome = ev.winner === this.player ? 'win' : ev.winner === 1 - this.player ? 'lose' : 'draw';
+    if (!this.online) this.learning.endSolo();
+    const gradient = this.lesson?.finish(outcome,ev.reason);
+    if (gradient) void this.learning.learn(gradient);
     this.ui.setStars(world.players[this.player].stars, world.players[1 - this.player].stars);
     if (this.surrendered) this.running = false;
     this.onEnd({

@@ -2,6 +2,7 @@
 // Kept free of `document` so they can be exercised from Node.
 import { MATCH } from '../config.js';
 import { DIFFICULTIES } from '../ai/profiles.js';
+import { shareAfterSolo } from '../../multiplayer-config.js';
 export { DIFFICULTIES };
 import { COLLECTION_CARDS, CARD_BY_ID, FAMILY_FORMS, DEFAULT_DECK, isValidDeck, formForSlot } from '../data/cards.js';
 
@@ -86,11 +87,13 @@ export function swapSlots(deck, a, b) {
 }
 
 export function normalizeSettings(s, base) {
-  const out = { quality: 'medium', sfx: true, music: true, ...(base || {}) };
+  const out = { quality: 'medium', sfx: true, music: true, learning: true, soloTrainingServer: shareAfterSolo, ...(base || {}) };
   if (s && typeof s === 'object') {
     if (QUALITIES.includes(s.quality)) out.quality = s.quality;
     if (typeof s.sfx === 'boolean') out.sfx = s.sfx;
     if (typeof s.music === 'boolean') out.music = s.music;
+    if (typeof s.learning === 'boolean') out.learning = s.learning;
+    if (typeof s.soloTrainingServer === 'boolean') out.soloTrainingServer = s.soloTrainingServer;
   }
   return out;
 }

@@ -63,6 +63,11 @@ export const MATCH = Object.freeze({
   STARS_TO_WIN: 3,
 });
 
+export function elixirGain(seconds, phase) {
+  const multiplier = phase === 'surge' ? MATCH.SURGE_MULT : phase === 'overtime' ? MATCH.OVERTIME_MULT : 1;
+  return seconds * multiplier / MATCH.AETHER_PERIOD;
+}
+
 /** Team palette (hex ints for three.js, css strings for the DOM). */
 export const TEAMS = Object.freeze([
   Object.freeze({

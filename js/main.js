@@ -13,6 +13,7 @@ import { CARDS, OPPONENTS } from './data/cards.js';
 import { cardArtUrl } from './data/royale-art.js';
 import { loadState, saveState } from './game/store.js';
 import { Multiplayer } from './game/multiplayer.js';
+import { RivalLearning } from './ai/live-learning.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -22,6 +23,7 @@ const TROPHIES = {
   hard: { win: 40, lose: -12 },
   expert: { win: 50, lose: -12 },
   master: { win: 60, lose: -12 },
+  neural: { win: 60, lose: -12 },
 };
 
 function bootMessage(text) {
@@ -43,6 +45,9 @@ class Game {
     const overlayCanvas = document.getElementById('overlay-canvas');
     this.canvas = canvas;
     this.state = loadState();
+    this.learning = new RivalLearning({
+      enabled: this.state.settings.learning, syncAfterMatch: this.state.settings.soloTrainingServer,
+    });
     const q = params.get('quality');
     if (q === 'low' || q === 'medium' || q === 'high') this.state.settings.quality = q;
 
@@ -60,13 +65,14 @@ class Game {
         play: () => this.startMatch(),
         towerChange: (id) => {this.state.towerTroop=id;saveState(this.state);},
         ability: id => this.battle.activateAbility(id),
-        onlineOpen: () => this.online.wake(),
+        onlineOpen: () => { this.online.wake(); void this.learning.connect(); },
         onlineStart: (op, code) => this.online.start(op, { deck: this.state.deck, towerTroop: this.state.towerTroop }, code),
         onlineCancel: () => this.online.stop(),
         onlineClose: () => { if (!this.online.session?.active) this.online.stop(); },
         deckChange: (deck) => { this.state.deck = [...deck]; saveState(this.state); },
         difficultyChange: (d) => { this.state.difficulty = d; saveState(this.state); },
         settingsChange: (s) => this.applySettings(s),
+        learningStatus: () => this.learning.status(),
         cardPointerDown: (i, ev) => this.input.onCardDown(i, ev),
         surrender: () => this.battle.surrender(),
         rematch: () => {
@@ -79,6 +85,7 @@ class Game {
     });
 
     this.battle = new Battle({
+      learning: this.learning,
       stage: this.stage, arena: this.arena, fx: this.fx, overlay: this.overlay, audio: this.audio, ui: this.ui,
       onEnd: (result) => this.onBattleEnd(result),
     });
@@ -89,7 +96,10 @@ class Game {
       wait: (message, code) => this.ui.onlinePanel.show(message, code, true),
       frame: (packet, first) => {
         if (first) this.startOnline(packet);
+        const index = this.input.selected;
+        const selected = index !== null && this.input.cardIdAt(index);
         this.battle.receive(packet);
+        if (index !== null && selected !== this.input.cardIdAt(index)) this.input.reset();
       },
       connection: message => {
         this.ui.connection.textContent = message;
@@ -107,7 +117,6 @@ class Game {
     });
 
     this.stage.setCameraMode('menu', true);
-    this.ui.showMenu();
     this.onResize();
     const onResize = () => this.onResize();
     window.addEventListener('resize', onResize);
@@ -151,7 +160,18 @@ class Game {
     await Promise.race([window.introFinished, new Promise(resolve => setTimeout(resolve, 8000))]);
     this.ui.hideBoot();
     this.audio.music('menu');
-    if (params.has('autostart') || params.has('autoplay')) this.startMatch();
+    if (params.has('autostart') || params.has('autoplay')) {
+      this.startMatch();
+    } else {
+      this.ui.showMenu();
+      const { learning, soloTrainingServer } = this.state.settings;
+      const firstVisit = !this.state.soloTrainingPromptSeen;
+      this.ui.showWelcome(firstVisit && learning && !soloTrainingServer);
+      if (firstVisit) {
+        this.state.soloTrainingPromptSeen = true;
+        saveState(this.state);
+      }
+    }
   }
 
   frame(now) {
@@ -191,6 +211,13 @@ class Game {
   applySettings(settings) {
     const prev = this.state.settings;
     this.state.settings = { ...prev, ...settings };
+    if (this.state.settings.soloTrainingServer !== prev.soloTrainingServer) {
+      this.learning.setSoloServer(this.state.settings.soloTrainingServer);
+    }
+    if (this.state.settings.learning !== prev.learning) {
+      this.learning.setEnabled(this.state.settings.learning);
+      if (this.learning.enabled && this.learning.connected) void this.learning.sync();
+    }
     if (this.state.settings.quality !== prev.quality) {
       this.stage.setQuality(this.state.settings.quality);
       this.onResize();

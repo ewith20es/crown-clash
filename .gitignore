@@ -2,3 +2,4 @@
 # Downloaded source HTML is reproducible; normalized reference is in js/data.
 tools/sources/*.html
 tools/__pycache__/
+.learning/

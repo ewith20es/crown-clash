@@ -100,7 +100,7 @@ export class MatchService {
           other = this.rooms.get(String(data.code).trim().toUpperCase());
           if (!other || now - other.seen >= grace) fail(404, 'Room unavailable. Check the code or ask for a new one.');
         }
-        p = { token, deck: data.deck, towerTroop: data.towerTroop, seen: now };
+        p = { token, deck: data.deck, towerTroop: data.towerTroop, seen: now, localElixir: data.localElixir === true };
         this.players.set(token, p);
         if (op === 'create') {
           do { p.code = Array.from({ length: 6 }, () => alphabet[randomInt(alphabet.length)]).join(''); }
@@ -138,10 +138,17 @@ export class MatchService {
       else if (m.start !== null && now >= m.start && w.phase !== 'ended') {
         if (command.type === 'card' && Number.isInteger(command.index) && Number.isFinite(command.x) &&
             Number.isFinite(command.z) && command.card === w.players[p.team].hand[command.index]) {
-          p.accepted = w.playCard(p.team, command.index, command.x, command.z);
+          // The playing device already checked and spent the card's elixir.
+          p.accepted = w.playCard(p.team, command.index, command.x, command.z, {
+            checkElixir: !p.localElixir, boosted: p.localElixir && typeof command.boosted === 'boolean' ? command.boosted : undefined,
+          });
         } else if (command.type === 'ability') p.accepted = w.activateAbility(p.team, command.id);
       }
       this.collect(m);
+      // Send moves on the existing streams as soon as they are validated.
+      // Retransmitted commands never reach this block.
+      const recipients = p.accepted ? m.players : [p];
+      for (const peer of recipients) peer.flushStream?.();
     }
     if (data.ackOnly === true && command) return { status: 'ack', seq: p.seq, accepted: p.accepted };
     return this.update(p, data);
@@ -156,7 +163,7 @@ export class MatchService {
       const previous = p.baseline;
       const serial = (previous?.serial ?? 0) + 1;
       const { wire, baseline } = encodeUpdate(m.world, p.team,
-        { live, seq: p.seq, accepted: p.accepted, cursor: m.cursor, events }, serial,
+        { live, seq: p.seq, accepted: p.accepted, cursor: m.cursor, events, localElixir: p.localElixir }, serial,
         previous?.serial === data.base ? previous : null);
       p.baseline = baseline;
       return { status: 'match', wire };
@@ -202,20 +209,22 @@ function watch(req, res, service, data) {
     lastWrite = Date.now();
     output.write(JSON.stringify(wire) + '\n');
   };
-  const timer = setInterval(() => {
+  const flush = () => {
     if (output.writableNeedDrain || res.writableNeedDrain) return;
     if (tick === match.world.tick && cursor === match.cursor && seq === p.seq && Date.now() - lastWrite < 500) return;
     send(service.update(p, { cursor, base, v: 1 }).wire);
     if (match.world.phase === 'ended') close();
-  }, 1000 / 15);
+  };
+  const timer = setInterval(flush, 1000 / 15);
   const renewal = setTimeout(() => close(), 20_000);
   const cleanup = () => {
     clearInterval(timer);
     clearTimeout(renewal);
-    if (p.closeStream === close) p.closeStream = null;
+    if (p.closeStream === close) { p.closeStream = null; p.flushStream = null; }
   };
   const close = () => { cleanup(); output.end(); };
   p.closeStream = close;
+  p.flushStream = flush;
   res.on('close', () => { cleanup(); if (output !== res) output.destroy(); });
   send(first.wire);
   if (match.world.phase === 'ended') close();

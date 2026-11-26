@@ -669,6 +669,8 @@ export function cardAbilities(card) {
   if (u.shield > 0) out.push('Shield: absorbs damage first; a hit that breaks it deals no extra damage.');
   if (u.kamikaze) out.push('Burst: destroys itself when it strikes.');
   if (u.chain) out.push(`Chain: each hit arcs to up to ${u.chain.count} enemies.`);
+  if (u.onHit?.freeze) out.push(`Freezes nearby enemies for ${u.onHit.freeze} seconds.`);
+  if (u.iceBlastDelay) out.push(`The target releases one more ice blast after ${u.iceBlastDelay} seconds if it survives.`);
   if (u.onHit?.stun) out.push(`Stun: hits stun for ${u.onHit.stun} s, resetting charges and beams.`);
   if (u.onHit?.slow) out.push(`Chill: hits slow by ${Math.round(u.onHit.slow.pct * 100)}% for ${u.onHit.slow.dur} s.`);
   if (u.ramp) out.push('Focus: damage ramps up while it stays on the same target.');

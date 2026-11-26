@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { World } from '../js/sim/world.js';
 import { Bot } from '../js/ai/bot.js';
+import { createRival } from '../js/ai/neural-rival.js';
 import { OPPONENTS, DEFAULT_DECK, CARD_BY_ID, COLLECTION_CARDS } from '../js/data/cards.js';
 import { DIFFICULTIES, PROFILES } from '../js/ai/profiles.js';
 import { loadState, saveState } from '../js/game/store.js';
@@ -41,7 +42,9 @@ test('every rival difficulty survives a save and starts the corresponding bot', 
       saveState({...loadState(),difficulty});
       const state = loadState();
       assert.equal(state.difficulty,difficulty);
-      assert.equal(new Bot(new World(),1,state).p,PROFILES[difficulty]);
+      const rival = createRival(new World(),1,state);
+      if (difficulty === 'neural') assert.equal(rival.constructor.name,'NeuralRival');
+      else assert.equal(rival.p,PROFILES[difficulty]);
     }
   } finally {
     if (previous) Object.defineProperty(globalThis,'localStorage',previous);
@@ -130,7 +133,7 @@ test('Master takes a winning spell shot under pressure in overtime', () => {
 
 function match(seed, d0, d1, deck0, deck1) {
   const w = new World({ seed, decks: [deck0, deck1] });
-  const bots = [new Bot(w, 0, { difficulty: d0, seed }), new Bot(w, 1, { difficulty: d1, seed: seed + 1 })];
+  const bots = [createRival(w, 0, { difficulty: d0, seed }), createRival(w, 1, { difficulty: d1, seed: seed + 1 })];
   let botMs = 0, calls = 0, plays = [0, 0];
   const orig = w.playCard.bind(w);
   w.playCard = (team, i, x, z) => { const ok = orig(team, i, x, z); if (ok) plays[team]++; return ok; };

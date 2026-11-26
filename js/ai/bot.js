@@ -190,7 +190,7 @@ export class Bot {
     const leaking = aether >= this.p.leakAt;
     const surge = w.phase !== 'regular';
     const reserve = leaking ? 0 : Math.min(4, this.p.reserveK * Math.max(uncovered(this.lanes[0]), uncovered(this.lanes[1])));
-    const foeAether = this.p.tracksAether ? w.players[this.foe].aether : 5;
+    const foeAether = this.opponentAether();
     const punish = foeAether < 3 && aether >= (this.p.punishAt ?? 6) && worst < 0;
     if (punish && this.attack(hand, aether - reserve, true)) return;
     if (aether >= this.p.supportAt && this.support(hand, aether - reserve, leaking)) return;
@@ -207,6 +207,8 @@ export class Bot {
     }
     return out;
   }
+
+  opponentAether() { return this.p.tracksAether ? this.world.players[this.foe].aether : 5; }
 
   play(index, x, z) {
     const w = this.world;

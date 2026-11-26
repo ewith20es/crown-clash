@@ -41,7 +41,8 @@ function unitFrom(r, name, group, hidden, makeUnit, kind = 'unit') {
   // In this arena a lone runner reaches an undefended Princess Tower on its last 3 HP.
   if (r.slug === 'wall-breakers') Object.assign(u, { speed: 2.15, windup: 0, attackFx: 'burst' });
   if (s['Crown Tower damage'] && dmg) u.towerDmgMult=number(s['Crown Tower damage'])/dmg;
-  if (s['Stun duration'] || s['Freeze duration']) u.onHit={stun:number(s['Stun duration'] || s['Freeze duration'])};
+  if (s['Stun duration']) u.onHit={stun:number(s['Stun duration'])};
+  if (s['Freeze duration']) u.onHit={freeze:number(s['Freeze duration'])};
   if (s['Charge damage']) u.charge={dist:3,speedMult:2,dmgMult:number(s['Charge damage'])/dmg};
   if (s['Dash damage']) u.pounce={min:3.5,max:6,speed:12,dmgMult:number(s['Dash damage'])/dmg};
   if (s['Damage (stage 1)']) u.ramp={times:[2,4],mults:[1,number(s['Damage (stage 2)'])/dmg,number(s['Damage (stage 3)'])/dmg]};
@@ -203,7 +204,10 @@ function applyEvolution(u,slug,s,groups,units,childIds){
   if(slug==='mortar')u.hitSpawn={unit:'goblin',count:1};
   if(slug==='goblin-cage'){u.dmg=183;u.hitSpeed=.5;u.range=3;u.sight=3;u.hook={min:.5,max:3,cooldown:1};}
   if(slug==='bomber')u.pierce=10;
-  if(slug==='ice-spirit')u.onHit={stun:2.2};
+  if(slug==='ice-spirit'){
+    u.projectile=null;
+    u.iceBlastDelay=3;
+  }
   if(slug==='electro-dragon')u.chain={count:12,range:4};
   if(slug==='inferno-dragon')u.ramp={times:[1.6,3.6,19.6],mults:[1,120/35,422/35,844/35]};
   if(slug==='goblin-giant')u.spawn={unit:'goblin',count:1,interval:2.2,first:2.2,below:.5};

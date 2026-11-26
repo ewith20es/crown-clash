@@ -1,7 +1,7 @@
 // Aether Spires — deterministic battle simulation (rules + physics). No DOM, no three.js.
 
 import {
-  SIM_DT, ARENA, MATCH, teamSign, enemyOf, towerPosition, deployRects as configDeployRects,
+  SIM_DT, ARENA, MATCH, elixirGain, teamSign, enemyOf, towerPosition, deployRects as configDeployRects,
   pointInRects, clampToRects, onBridge, inRift, formationOffsets, clamp, snap,
 } from '../config.js';
 import { UNITS, CARD_BY_ID, normalizeDeck, specialKind, cardFitsSlot } from '../data/cards.js';
@@ -49,6 +49,18 @@ function baseY(e) { return e.flying ? ARENA.FLY_HEIGHT : 0; }
 
 function mkStats() {
   return { damageDealt: 0, aetherSpent: 0, cardsPlayed: 0, unitsLost: 0, towerDamage: 0 };
+}
+
+export function cycleHand(p, handIndex, selected) {
+  if (selected.family !== 'mirror' && selected.rarity !== 'champion') p.lastCard = selected.id;
+  if (selected.variant === 'evolution') {
+    const count = p.cycles[selected.id] || 0;
+    p.cycles[selected.id] = count >= selected.cycles ? 0 : count + 1;
+  }
+  const played = p.hand[handIndex];
+  p.hand[handIndex] = p.next;
+  p.next = p.queue.shift();
+  p.queue.push(played);
 }
 
 export class World {
@@ -122,13 +134,13 @@ export class World {
 
   abilities(team) { return abilityList(this, team); }
   activateAbility(team, id) { return activateAbility(this, team, id); }
-  cardCost(team, card) {
+  cardCost(team, card, boosted) {
     if (card?.family === 'mirror') return Math.min(10, (CARD_BY_ID[this.players[team].lastCard]?.cost || 0) + 1);
-    if (card?.dualForm && this.players[team].aether >= 6) return 6;
+    if (card?.dualForm && (boosted ?? (this.players[team].aether >= card.dualForm.cost))) return card.dualForm.cost;
     return card?.cost || 0;
   }
 
-  canPlay(team, handIndex, x, z) {
+  canPlay(team, handIndex, x, z, { checkElixir = true, boosted } = {}) {
     const res = { ok: false, reason: null, x: 0, z: 0, clamped: false, card: null };
     let rx = Number(x);
     let rz = Number(z);
@@ -140,6 +152,7 @@ export class World {
     const card = (id && CARD_BY_ID[id]) || null;
     res.card = card;
     if (card) {
+      res.cost = this.cardCost(team, card, boosted);
       let deployment = card;
       if (card.family === 'mirror' && player.lastCard) {
         const previous = CARD_BY_ID[player.lastCard];
@@ -149,7 +162,7 @@ export class World {
       }
       if (deployment.dualForm) {
         const form = deployment.dualForm;
-        deployment = {...deployment, unit: this.cardCost(team, card) >= 6 ? form.unit : form.ground};
+        deployment = {...deployment, unit: res.cost >= form.cost ? form.unit : form.ground};
       }
       res.deployment = deployment;
       this._resolveDeployPoint(team, deployment, rx, rz, res);
@@ -161,28 +174,20 @@ export class World {
     else if (!card) res.reason = 'card';
     else if (specialKind(card) !== 'regular' && !cardFitsSlot(id, player.deck.indexOf(id))) res.reason = 'slot';
     else if (card.family === 'mirror' && !player.lastCard) res.reason = 'mirror';
-    else if (player.aether + EPS < this.cardCost(team, card)) res.reason = 'aether';
+    else if (checkElixir && player.aether + EPS < res.cost) res.reason = 'aether';
     res.ok = res.reason === null;
     return res;
   }
 
-  playCard(team, handIndex, x, z) {
-    const res = this.canPlay(team, handIndex, x, z);
+  playCard(team, handIndex, x, z, options) {
+    const res = this.canPlay(team, handIndex, x, z, options);
     if (!res.ok) return false;
     const selected = res.card;
     const card = res.deployment;
     const p = this.players[team];
-    const cost = this.cardCost(team, selected);
+    const cost = res.cost;
     p.aether = Math.max(0, p.aether - cost);
-    if (selected.family !== 'mirror' && selected.rarity !== 'champion') p.lastCard = selected.id;
-    if (selected.variant === 'evolution') {
-      const count = p.cycles[selected.id] || 0;
-      p.cycles[selected.id] = count >= selected.cycles ? 0 : count + 1;
-    }
-    const played = p.hand[handIndex];
-    p.hand[handIndex] = p.next;
-    p.next = p.queue.shift();
-    p.queue.push(played);
+    cycleHand(p, handIndex, selected);
     const st = this.stats[team];
     st.aetherSpent += cost;
     st.cardsPlayed += 1;
@@ -252,8 +257,7 @@ export class World {
       this.phase = 'surge';
       this._emit({ type: 'phase', phase: 'surge' });
     }
-    const mult = this.phase === 'surge' ? MATCH.SURGE_MULT : this.phase === 'overtime' ? MATCH.OVERTIME_MULT : 1;
-    const gain = (dt / MATCH.AETHER_PERIOD) * mult;
+    const gain = elixirGain(dt, this.phase);
     for (let t = 0; t < 2; t++) {
       const p = this.players[t];
       p.aether = Math.min(MATCH.AETHER_MAX, p.aether + gain);
@@ -565,6 +569,7 @@ export class World {
     if (!onHit || !v.alive) return;
     if (onHit.slow) this._slow(v, onHit.slow.pct, onHit.slow.dur);
     if (onHit.stun) this._stun(v, onHit.stun);
+    if (onHit.freeze) this._freeze(v, onHit.freeze);
     if (onHit.knockback) this._knockback(v, v.x - fromX, v.z - fromZ, onHit.knockback, srcTeam);
   }
 
@@ -804,6 +809,11 @@ export class World {
       if (def.chain) this._chainHit(e, t, dmg);
       else if (def.splash > 0) this._areaHit(def, e.team, t.x, t.z, def.splash, dmg, e.x, e.z, e.type);
       else this._hitOne(def, e.team, t, dmg, e.x, e.z, e.type);
+      if (def.iceBlastDelay && t.alive) {
+        this.pending.push({ kind: 'iceBlast', team: e.team, cardId: e.type, targetId: t.id,
+          x: t.x, z: t.z, timeLeft: def.iceBlastDelay,
+          spell: { kind: 'stasis', duration: def.onHit.freeze, radius: def.splash, damage: dmg, towerMult: def.towerDmgMult } });
+      }
       this._emit({ type: 'impact', team: e.team, sourceType: e.type, projKind: null, attackFx: def.attackFx, splash: def.splash, x: e.x, y: e.y, z: e.z });
       this._kill(e);
       return;

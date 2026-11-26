@@ -1101,6 +1101,11 @@ export class Fx {
       const p = list[i];
       const tg = TEAM_GLOW[p.team === 1 ? 1 : 0];
       switch (p.kind) {
+        case 'iceBlast': {
+          const target = world.getEntity(p.targetId);
+          if (target?.alive) this.head(target.x, target.y + target.def.height, target.z, .45, COL.ice, .8);
+          break;
+        }
         case 'tunnel': {
           const dur = p.duration || 1;
           const t = Math.max(0, Math.min(1, 1 - p.timeLeft / dur));

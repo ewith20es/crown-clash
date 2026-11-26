@@ -470,8 +470,6 @@
 
 .card--detail { box-shadow: 0 4px 0 rgba(0, 0, 0, .45), 0 0 30px rgba(120, 190, 255, .25), 0 12px 24px rgba(0, 0, 0, .4); }
 
-.card--proxy { box-shadow: 0 0 0 2px rgba(255, 243, 196, .8), 0 0 22px rgba(255, 210, 110, .55), 0 14px 22px rgba(0, 0, 0, .45); }
-
 /* ───────────────────────────── menu ───────────────────────────── */
 
 .scr-menu {
@@ -893,13 +891,13 @@
 
 .hand-slot.is-selected .hand-slot__lift { transform: translateY(-14%) scale(1.04); }
 .hand-slot.is-selected .card {
-  box-shadow: 0 0 0 2px #fff6d2, 0 0 0 4px var(--gold), 0 0 18px 4px rgba(255, 205, 90, .6), 0 8px 14px rgba(0, 0, 0, .4);
+  box-shadow: 0 3px 0 var(--gold), 0 8px 14px rgba(0, 0, 0, .4);
 }
 
 .hud-bottom.has-selection .hand-slot:not(.is-selected) .hand-slot__lift { opacity: .78; }
 
 .hand-slot.is-dragging .hand-slot__lift { opacity: .32; transform: scale(.9); }
-.hand-slot.is-dragging .card { box-shadow: 0 0 0 2px rgba(255, 255, 255, .55); }
+.hand-slot.is-dragging .card { box-shadow: none; }
 
 .hand-charge {
   position: absolute;
@@ -1747,6 +1745,7 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12);
 }
 
+.switch:disabled { opacity: .5; cursor: default; }
 .switch {
   position: relative;
   flex: none;
@@ -1902,6 +1901,16 @@
 
 .modal__actions { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal__actions .btn { padding: 0 .6em; font-size: 14px; }
+
+.training-prompt {
+  position: fixed;
+  width: min(380px, calc(100% - 32px));
+  margin: auto;
+  border: 0;
+  color: var(--text);
+}
+.training-prompt::backdrop { background: rgba(4, 6, 20, .66); }
+.training-prompt .modal__text { margin-top: 10px; color: var(--text); line-height: 1.5; }
 
 /* ───────────────────────────── responsive ───────────────────────────── */
 

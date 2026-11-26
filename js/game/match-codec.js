@@ -1,4 +1,4 @@
-import { SIM_DT } from '../config.js';
+import { SIM_DT, MATCH, elixirGain } from '../config.js';
 
 // Shared with the original full-snapshot format.
 export const entityFields = ('id type team slot cardId x y z facing hp maxHp shield maxShield active flying state stateTime '
@@ -59,6 +59,10 @@ function decodeEntity(row, tick) {
   return result;
 }
 
+function balanceAt([value, startTick], tick, phase) {
+  return Math.min(MATCH.AETHER_MAX, value + elixirGain((tick - startTick) * SIM_DT, phase));
+}
+
 // A zero baseline carries a complete replacement. Positive IDs carry a field
 // mask (zero for a spawn), negative IDs remove an entity.
 export function encodeUpdate(world, team, meta, serial, before) {
@@ -85,9 +89,18 @@ export function encodeUpdate(world, team, meta, serial, before) {
   if (before) for (const id of before.rows.keys()) if (!rows.has(id)) changes.push(-id);
 
   const p = world.players[team];
+  // Clients that refill locally only need a balance checkpoint after a spend,
+  // a bonus, a phase change, or a fresh connection.
+  let balance = p.aether;
+  if (meta.localElixir) {
+    const last = before?.elixir;
+    const predictable = last && before.signatures[2] === meta.seq && before.signatures[5] === world.phase &&
+      Math.abs(p.aether - balanceAt(last, tick, world.phase)) < 1e-8;
+    balance = predictable ? last : [p.aether, tick];
+  }
   const parts = [team, meta.live, meta.seq, meta.accepted ?? false, meta.cursor,
     world.phase, world.winner, world.endReason, tick + Math.round(world.timeLeft / SIM_DT),
-    p.deck, [p.hand, p.next, p.queue, p.lastCard, p.cycles], p.aether, world.players.map(v => v.stars),
+    p.deck, [p.hand, p.next, p.queue, p.lastCard, p.cycles], balance, world.players.map(v => v.stars),
     world.stats, world.abilities(team), ...Object.keys(effectFields).map(key => effects(world, key))];
   // Mutable world objects must never become the baseline by reference.
   const signatures = parts.map(v => typeof v === 'object' && v !== null ? JSON.stringify(v) : v);
@@ -100,7 +113,7 @@ export function encodeUpdate(world, team, meta, serial, before) {
   }
   const wire = [before?.serial ?? 0, serial, tick, changes, mask, ...values];
   if (meta.events.length) wire.push(meta.events.map(eventView));
-  return { wire, baseline: { serial, rows, signatures } };
+  return { wire, baseline: { serial, rows, signatures, elixir: meta.localElixir ? balance : null } };
 }
 
 export function decodeUpdate(wire, before) {
@@ -127,10 +140,13 @@ export function decodeUpdate(wire, before) {
     if (bits & 1) parts[i] = wire[at++];
   }
   const [team, live, seq, accepted, cursor, phase, winner, endReason, endTick, deck,
-    [hand, next, queue, lastCard, cycles], aether, stars, stats, abilities, projectiles, rollers, zones, pending] = parts;
+    [hand, next, queue, lastCard, cycles], balance, stars, stats, abilities, projectiles, rollers, zones, pending] = parts;
+  const checkpoint = Array.isArray(balance);
+  const aether = checkpoint ? balanceAt(balance, tick, phase) : balance;
   const players = stars.map(s => ({ stars: s }));
   Object.assign(players[team], { team, deck, hand, next, queue, lastCard, cycles, aether });
   const frame = { tick, time: tick * SIM_DT, timeLeft: (endTick - tick) * SIM_DT, phase, winner, endReason,
+    ...(checkpoint && { elixirCheckpoint: balance }),
     entities: Array.from(rows.values(), row => decodeEntity(row, tick)), players, stats, abilities,
     projectiles, rollers, zones, pending };
   return { packet: { status: 'match', team, live, seq, accepted, cursor, events: wire[at] ?? [], frame },

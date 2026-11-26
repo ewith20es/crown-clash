@@ -31,6 +31,7 @@ export class AudioEngine {
     this.lastAt = new Map();
     this.musicMode = null;
     this.wantMusic = null;
+    this.trackRequest = 0;
     this.musicTimer = 0;
     this.step = 0;
     this.nextStepAt = 0;
@@ -267,10 +268,44 @@ export class AudioEngine {
     this.musicMode = this.wantMusic;
     clearInterval(this.musicTimer);
     this.musicTimer = 0;
+    if (this.trackSource) {
+      this.trackSource.stop();
+      this.trackSource.disconnect();
+      this.trackSource = null;
+    }
     if (!this.musicMode) return;
-    this.step = 0;
-    this.nextStepAt = this.ctx.currentTime + 0.08;
-    this.musicTimer = setInterval(() => this.schedule(), 90);
+    this.trackBuffer ??= fetch(new URL('../../assets/music/montagem-tomada-slowed.mp3', import.meta.url))
+      .then(response => {
+        if (!response.ok) throw new Error('Music file unavailable');
+        return response.arrayBuffer();
+      })
+      .then(bytes => this.ctx.decodeAudioData(bytes))
+      .catch(() => null);
+    const request = ++this.trackRequest;
+    this.trackBuffer.then(buffer => {
+      if (request !== this.trackRequest || !this.musicMode) return;
+      if (!buffer) {
+        this.step = 0;
+        this.nextStepAt = this.ctx.currentTime + 0.08;
+        this.musicTimer = setInterval(() => this.schedule(), 90);
+        return;
+      }
+      const section = {
+        menu: [0, 16, 0.30], battle: [16, 56, 0.48],
+        surge: [40, 72, 0.55], overtime: [48, 80, 0.58],
+      }[this.musicMode];
+      this.trackGain ??= this.ctx.createGain();
+      this.trackGain.connect(this.musicBus);
+      this.trackGain.gain.value = section[2];
+      const source = this.ctx.createBufferSource();
+      source.buffer = buffer;
+      source.loop = true;
+      source.loopStart = section[0];
+      source.loopEnd = section[1];
+      source.connect(this.trackGain);
+      source.start(0, source.loopStart);
+      this.trackSource = source;
+    });
   }
 
   schedule() {

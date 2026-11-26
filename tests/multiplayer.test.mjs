@@ -6,13 +6,14 @@ import { OnlineWorld, snapshot } from '../js/game/online-world.js';
 import { World } from '../js/sim/world.js';
 import { decodeUpdate, encodeUpdate, entityFields } from '../js/game/match-codec.js';
 import { Multiplayer } from '../js/game/multiplayer.js';
-import { SIM_DT } from '../js/config.js';
-import { DEFAULT_DECK } from '../js/data/cards.js';
+import { MATCH, SIM_DT } from '../js/config.js';
+import { CARD_BY_ID, DEFAULT_DECK } from '../js/data/cards.js';
 
 function arena() {
   let time = 1000;
   const service = new MatchService(() => time);
   return {
+    service,
     ask(player, op, fields = {}) {
       const data = { token: player.toString(16).padStart(32, '0'), op, deck: DEFAULT_DECK,
         towerTroop: player === 2 ? 'cannoneer' : 'tower-princess', ...fields };
@@ -78,6 +79,146 @@ test('both players see, deploy, and finish the same authoritative battle; retrie
     assert.equal(result.winner, 0);
     assert.equal(result.endReason, 'surrender');
   }
+});
+
+test('a placement is sent to both streams before the next tick and a retry sends it only once', () => {
+  const { service, ask, advance } = arena();
+  ask(1, 'find'); ask(2, 'find');
+  ask(1, 'sync', { ready: true }); ask(2, 'sync', { ready: true });
+  advance(1000);
+  const match = [...service.matches][0];
+  const delivered = [[], []];
+  for (const p of match.players) {
+    p.flushStream = () => delivered[p.team].push(service.update(p, { cursor: 0 }));
+  }
+  const world = match.world, tick = world.tick, x = 4, z = 6;
+  const index = world.players[0].hand.findIndex((_, i) => {
+    const move = world.canPlay(0, i, x, z);
+    return move.ok && move.deployment.type === 'troop';
+  });
+  const command = { type: 'card', seq: 1, card: world.players[0].hand[index], index, x, z };
+  assert.ok(ask(1, 'sync', { command, ackOnly: true }).accepted);
+  ask(1, 'sync', { command, ackOnly: true });
+  for (const packets of delivered) {
+    assert.equal(packets.length, 1);
+    assert.equal(packets[0].frame.tick, tick);
+    assert.equal(packets[0].events.filter(e => e.type === 'cardPlayed').length, 1);
+    assert.ok(packets[0].events.some(e => e.type === 'spawn'));
+  }
+  assert.equal(ask(1, 'sync', { command: { ...command, seq: 2 }, ackOnly: true }).accepted, false);
+  assert.deepEqual(delivered.map(packets => packets.length), [2, 1]);
+});
+
+test('online cards use the paid form even when the server balance crosses its threshold', () => {
+  const { service, ask, advance } = arena();
+  ask(1, 'find', { localElixir: true }); ask(2, 'find');
+  ask(1, 'sync', { ready: true }); ask(2, 'sync', { ready: true });
+  advance(1000);
+  const w = [...service.matches][0].world;
+  const card = CARD_BY_ID['spirit-empress'];
+  const p = w.players[0];
+  for (const [i, boosted] of [true, false].entries()) {
+    p.hand[0] = card.id;
+    p.aether = boosted ? 0 : 10;
+    if (boosted) assert.equal(w.canPlay(0, 0, 3, 5).reason, 'aether');
+    const command = { seq: i + 1, type: 'card', card: card.id, index: 0, x: 3, z: 5, boosted };
+    const result = ask(1, 'sync', { command });
+    assert.equal(result.accepted, true);
+    assert.equal(result.events.filter(e => e.type === 'spawn').at(-1).entType,
+      boosted ? card.dualForm.unit : card.dualForm.ground);
+    const replay = ask(1, 'sync', { command });
+    assert.equal(replay.frame.stats[0].cardsPlayed, i + 1);
+    assert.deepEqual(ask(2, 'sync').frame.entities, replay.frame.entities);
+  }
+  assert.equal(w.stats[0].aetherSpent, card.dualForm.cost + card.cost);
+});
+
+test('local elixir funds consecutive drops, reconciles grants and refunds, and keeps stale deltas immutable', () => {
+  const w = new World(), view = new OnlineWorld();
+  const p = w.players[0];
+  Object.assign(p, { aether: 5, hand: ['skeletons', 'scouts', 'comet', 'colossus'], next: 'warden',
+    queue: ['longshot', 'breaker', 'shardstorm'] });
+  const meta = { localElixir: true, live: true, seq: 0, accepted: false, cursor: 0, events: [] };
+  let server, client, serial = 0;
+  const pending = [];
+  function sync(rejected = false) {
+    const encoded = encodeUpdate(w, 0, meta, ++serial, server);
+    const { packet, baseline } = decodeUpdate(JSON.parse(JSON.stringify(encoded.wire)), client);
+    server = encoded.baseline;
+    client = baseline;
+    view.apply(packet.frame);
+    view.syncElixir(packet, pending, rejected);
+    return encoded.wire;
+  }
+  function drop(index) {
+    const res = view.canPlay(0, index, 3, 5);
+    assert.ok(res.ok);
+    const move = { handIndex: index, card: res.card, cost: res.cost };
+    pending.push(move);
+    view.spend(0, move);
+    return move.cost;
+  }
+  sync();
+  const paid = drop(0) + drop(1);
+  assert.equal(view.players[0].aether, 5 - paid);
+  assert.deepEqual(view.players[0].hand.slice(0, 2), ['warden', 'longshot']);
+  assert.equal(view.canPlay(0, 2, 3, 5).reason, 'aether');
+  assert.deepEqual(client.parts[10][0], p.hand);
+  const wire = sync();
+  assert.equal(wire[4], 0);
+  assert.equal(view.players[0].aether, 5 - paid);
+  view.updateMovement(.28);
+  view.refillElixir(0);
+  assert.ok(Math.abs(view.players[0].aether - (5 - paid + .1)) < 1e-8);
+  w.step();
+  assert.equal(sync()[4] & (1 << 11), 0, 'passive refill uses zero payload fields');
+  assert.ok(w.playCard(0, 0, 3, 5, { checkElixir: false }));
+  meta.seq++; meta.accepted = true;
+  pending.shift();
+  sync();
+  assert.ok(Math.abs(view.players[0].aether - (p.aether - pending[0].cost)) < 1e-8);
+  p.aether += 1; // collector or death grant while the second card is in flight
+  assert.ok(sync()[4] & (1 << 11));
+  const withGrant = view.players[0].aether;
+  sync();
+  assert.equal(view.players[0].aether, withGrant);
+  meta.seq++; meta.accepted = false;
+  pending.length = 0;
+  sync(true);
+  assert.deepEqual(view.players[0], p);
+  for (const phase of ['surge', 'overtime']) {
+    w.phase = phase;
+    sync();
+    view.updateMovement(.28);
+    view.refillElixir(0);
+    assert.ok(Math.abs(view.players[0].aether - (p.aether + .2)) < 1e-8);
+    for (let i = 0; i < 9; i++) w.step();
+    sync();
+  }
+  p.aether = MATCH.AETHER_MAX - .05;
+  sync();
+  view.updateMovement(.5); view.refillElixir(0);
+  assert.equal(view.players[0].aether, MATCH.AETHER_MAX);
+});
+
+test('queued drops retain their order and a rejected drop cancels dependent commands', () => {
+  const sent = [], denied = [];
+  const net = new Multiplayer({ frame() {}, connection() {}, denied: m => denied.push(m.seq) });
+  const s = net.session = { active: true, seq: 0, queue: [], stream: {} };
+  net.postMove = (_, m) => sent.push(m.seq);
+  const drop = () => net.send({ type: 'card' });
+  const reply = (seq, accepted) => net.receive(s, { seq, accepted, live: true, frame: { phase: 'regular' } });
+  assert.deepEqual([drop(), drop(), drop()], [1, 2, 3]);
+  assert.deepEqual(sent, [1]);
+  reply(1, true); reply(1, true);
+  assert.deepEqual(sent, [1, 2]);
+  reply(2, false);
+  assert.equal(s.command, null);
+  assert.deepEqual(denied, [2]);
+  assert.equal(drop(), 3);
+  reply(2, false); reply(3, true);
+  assert.deepEqual(sent, [1, 2, 3]);
+  assert.deepEqual(denied, [2]);
 });
 
 test('disconnect grace, expired rooms and finished match cleanup', () => {

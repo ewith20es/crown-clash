@@ -97,6 +97,12 @@
 .card__frame { background:linear-gradient(#e4edf4,#96acc0 45%,#627d98); border-radius:8%/6%; }
 .card__img { object-fit:cover; }
 .card__art { bottom:4cqw; }
+.card:is(.deck-drag-ghost, .card--proxy) {
+  padding:0;
+  background:transparent;
+  box-shadow:none;
+}
+:is(.deck-drag-ghost, .card--proxy) .card__art { inset:0; border-radius:inherit; }
 .card__name { background:linear-gradient(transparent,#071626f5); bottom:0; min-height:25%; display:flex; align-items:flex-end; justify-content:center; padding:12% 3% 7%; line-height:1.05; font-weight:900; }
 .card[data-variant=evolution] .card__frame { background:linear-gradient(#f1c8ff,#b75ce4 50%,#703398); }
 .card[data-variant=hero] .card__frame,.card[data-variant=champion] .card__frame { background:linear-gradient(#fff0ae,#e1b04d 50%,#a77323); }

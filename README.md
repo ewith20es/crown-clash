@@ -10,9 +10,23 @@ Double-click **Play Crown Clash.cmd**, or run `npm start` from this folder and o
 
 Pick eight of the 123 cards in **Deck**. Drag from the collection into a highlighted slot, or drag two deck cards over each other to swap. On a touchscreen, hold a collection card to lift it. Slot 1 equips an available Evolution, slot 2 equips a Hero or Champion, and slot 3 is Wild. When a Wild card has both forms, use the **Evo / Hero** switch. The deck, Wild choice, tower troop, settings and record save locally.
 
-Tap a card and then a tile, or drag it into place. The outlined square marks the deployment tile and the preview shows each swarm member's starting position. Keys 1–4 select cards and Esc cancels. An Evolution's hand badge counts regular plays until the next deployment evolves. Deploy a Hero or Champion to reveal its ability button above the hand. Destroying a Princess Tower opens its lane's forward deployment pocket. The King Tower awards three crowns.
+Tap a card and then a tile, or drag it into place. The outlined square marks the deployment tile and the preview shows each swarm member's starting position. Tap a card or press 1–4 to select it. It stays selected until you deploy it or choose another card. Esc cancels a drag. An Evolution's hand badge counts regular plays until the next deployment evolves. Deploy a Hero or Champion to reveal its ability button above the hand. Destroying a Princess Tower opens its lane's forward deployment pocket. The King Tower awards three crowns.
 
 Choose **Easy**, **Normal**, **Hard**, **Expert** or **Master** under **Rival** before battle. Hard and above can rush the opposite bridge when you spend heavily in one lane. Expert saves elixir when a Princess Tower can handle a lone attacker and sends tanks ahead of surviving ranged defenders. Master also looks for spells that hit a defender and tower together and can combine two spells to finish a tower. Every difficulty uses the same card costs, tower stats and elixir regeneration.
+
+### Neural rival and learning
+
+Choose **Rival → Neural** to play the trained opponent. It scores legal card placements and waiting, alongside tactical suggestions from Master. Its starting weights come from imitation, self-play, and matches against Master. In **Settings → Learn from my matches**, players can see how many results contributed and turn learning on or off.
+
+Human wins and losses on any solo difficulty and in multiplayer update the model after at least three accepted card plays. Draws, autoplay, surrenders and disconnects are skipped. The next battle uses the updated weights. A shared update contains 12 rounded numbers, the model version, a match-specific random ID and a timestamp. Names, room codes and replays are excluded.
+
+**Settings → Use training server in solo** lets a player contribute to the shared AI on any solo difficulty. It is off by default and saves on this device. With it on, starting a solo battle sends one low-priority wake request to Render. The match starts immediately using the cached model. Uploads, retries and model downloads wait until the battle ends. The model received after a match is available for the next battle. With the switch off, solo matches learn locally and queue their contributions until the player opens **Multiplayer**.
+
+**On GitHub Pages**, publish the updated game and deploy the same revision to the existing Render service. The player uses the configured multiplayer address for `/api/learning`. The site owner can change the initial switch setting with `shareAfterSolo` in `multiplayer-config.js`.
+
+**To retain community learning on free Render**, set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` in the Render service's environment and redeploy. Use the writable credentials from your Upstash Redis database. Only Render contacts Redis. Without those variables, a single server instance writes checkpoints under `.learning/`, which persists locally but is lost when a free Render instance spins down or redeploys. On a host with a persistent disk, set `LEARNING_DATA_DIR` to its mounted directory. [Render storage behavior](https://render.com/docs/free#local-files-lost-on-redeploy) · [Redis REST credentials](https://upstash.com/docs/redis/features/restapi)
+
+Run `node tools/train-rival.mjs evaluate` to benchmark the shipped weights against Master with both starting sides. Run `node tools/train-rival.mjs train` to produce a new checkpoint. Each checkpoint has its own learning history.
 
 ## Multiplayer
 

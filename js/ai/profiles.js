@@ -84,18 +84,18 @@ const expert = Object.freeze({
   towerCover: true,         // save elixir when the Princess Tower can finish a lone attacker
 });
 
+const master = Object.freeze({
+  ...expert,
+  reaction: Object.freeze([.14, .28]),
+  think: Object.freeze([.12, .18]),
+  gap: Object.freeze([.5, .8]),
+  horizon: 3.2, defendAt: 1.1, pushAt: 9, supportAt: 3, punishAt: 5.5,
+  spellValue: 1.15, spellDef: .85,
+  offensiveSpells: true,  // clear defenders or freeze a tower while allies are in range
+});
 export const PROFILES = Object.freeze({
-  ...standard,
-  expert,
-  master: Object.freeze({
-    ...expert,
-    reaction: Object.freeze([.14, .28]),
-    think: Object.freeze([.12, .18]),
-    gap: Object.freeze([.5, .8]),
-    horizon: 3.2, defendAt: 1.1, pushAt: 9, supportAt: 3, punishAt: 5.5,
-    spellValue: 1.15, spellDef: .85,
-    offensiveSpells: true,  // clear defenders or freeze a tower while allies are in range
-  }),
+  ...standard, expert, master,
+  neural: Object.freeze({ ...master, think: Object.freeze([.40,.52]), tracksAether: false }),
 });
 
 export const DIFFICULTIES = Object.freeze(Object.keys(PROFILES));

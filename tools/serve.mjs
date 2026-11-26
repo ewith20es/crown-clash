@@ -6,6 +6,8 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MatchService, serveMatch } from './multiplayer.mjs';
+import { FilePolicy, RedisPolicy, learningApi } from './learning.mjs';
+import { MODEL_VERSION } from '../js/ai/network.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = Number(process.env.PORT) || 5173;
@@ -27,12 +29,18 @@ const MIME = {
 };
 
 const matches = new MatchService();
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL, redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+if (!!redisUrl !== !!redisToken) throw Error('Configure both Upstash learning storage variables');
+const policyStore = redisUrl ? new RedisPolicy(redisUrl,redisToken)
+  : new FilePolicy(path.join(process.env.LEARNING_DATA_DIR || path.join(root,'.learning'),MODEL_VERSION+'.json'));
+const serveLearning = learningApi(policyStore,process.env.PAGES_ORIGIN);
 const ticker = setInterval(() => matches.maintain(), 1000 / 30);
 ticker.unref();
 const server = http.createServer(async (req, res) => {
   try {
     let pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
     if (pathname === '/api/match') return await serveMatch(req, res, matches);
+    if (pathname === '/api/learning') return await serveLearning(req,res);
     if (pathname.endsWith('/')) pathname += 'index.html';
     if (!/^\/(?:index\.html$|multiplayer-config\.js$|(?:assets|js|css)\/)/.test(pathname) || /(?:^|\/)\.|[\\:]/.test(pathname)) {
       res.writeHead(404).end('Not found');

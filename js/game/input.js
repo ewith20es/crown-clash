@@ -37,7 +37,7 @@ export class CardInput {
 
     this.canvas.addEventListener('pointerdown', (ev) => this.onCanvasDown(ev));
     window.addEventListener('keydown', (ev) => this.onKey(ev));
-    window.addEventListener('blur', () => this.reset());
+    window.addEventListener('blur', () => this.cancelGesture());
   }
 
   // ───────────────────────── presses that start on a card ─────────────────────────
@@ -45,14 +45,12 @@ export class CardInput {
   onCardDown(index, ev) {
     if (!this.battle.canPlayerAct()) return;
     if (ev.button !== undefined && ev.button > 0) return;
-    this.endAim();
-    this.endDrag();
+    this.cancelGesture();
     this.drag = {
       index, pointerId: ev.pointerId, startX: ev.clientX, startY: ev.clientY,
-      moved: false, over: false, wasSelected: this.selected === index,
+      moved: false,
     };
     this.select(index);
-    this.audio.play('cardSelect');
     window.addEventListener('pointermove', this.onDragMove, { passive: true });
     window.addEventListener('pointerup', this.onDragUp);
     window.addEventListener('pointercancel', this.onDragUp);
@@ -64,15 +62,13 @@ export class CardInput {
     if (!d.moved) {
       if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) < DRAG_THRESHOLD) return;
       d.moved = true;
+      this.ui.setDragging(d.index);
     }
     const cardId = this.cardIdAt(d.index);
-    d.over = this.isOverArena(ev.clientY);
-    if (d.over) {
+    if (this.isOverArena(ev.clientY)) {
       this.ui.moveDragProxy(null, 0, 0);
-      this.ui.setDragging(d.index);
       this.preview(d.index, ev.clientX, ev.clientY);
     } else {
-      this.ui.setDragging(null);
       this.ui.moveDragProxy(cardId, ev.clientX, ev.clientY);
       this.hidePreview();
     }
@@ -82,12 +78,9 @@ export class CardInput {
     const d = this.drag;
     if (!d || ev.pointerId !== d.pointerId) return;
     this.endDrag();
-    if (ev.type === 'pointercancel') { this.deselect(); return; }
+    if (ev.type === 'pointercancel') return;
     if (d.moved) {
       if (this.isOverArena(ev.clientY)) this.tryPlay(d.index, ev.clientX, ev.clientY);
-      this.deselect();
-    } else if (d.wasSelected) {
-      this.deselect();                       // second tap on the same card puts it back
     } else {
       this.ui.hint('Tap the island to deploy');
     }
@@ -129,7 +122,7 @@ export class CardInput {
     const index = this.selected;
     this.endAim();
     if (ev.type === 'pointercancel' || index === null) return;
-    if (this.isOverArena(ev.clientY) && this.tryPlay(index, ev.clientX, ev.clientY)) this.deselect();
+    if (this.isOverArena(ev.clientY)) this.tryPlay(index, ev.clientX, ev.clientY);
   }
 
   endAim() {
@@ -146,10 +139,12 @@ export class CardInput {
     if (!this.battle.canPlayerAct()) return;
     if (ev.key >= '1' && ev.key <= '4') {
       const index = Number(ev.key) - 1;
-      if (this.selected === index) this.deselect();
-      else { this.select(index); this.ui.hint('Click the island to deploy'); this.audio.play('cardSelect'); }
+      if (this.selected === index) return;
+      this.cancelGesture();
+      this.select(index);
+      this.ui.hint('Click the island to deploy');
     } else if (ev.key === 'Escape') {
-      this.reset();
+      this.cancelGesture();
     }
   }
 
@@ -165,8 +160,10 @@ export class CardInput {
   }
 
   select(index) {
+    if (index === this.selected) return;
     this.selected = index;
     this.ui.setSelected(index);
+    this.audio.play('cardSelect');
   }
 
   deselect() {
@@ -176,17 +173,19 @@ export class CardInput {
     this.hidePreview();
   }
 
-  /** Drop every in-progress interaction (match ended, window lost focus, ...). */
-  reset() {
+  cancelGesture() {
     this.endDrag();
     this.endAim();
+  }
+
+  reset() {
+    this.cancelGesture();
     this.deselect();
   }
 
   tryPlay(index, clientX, clientY) {
     const g = this.stage.screenToGround(clientX, clientY);
-    if (!g) return false;
-    return this.battle.playCard(index, g.x, g.z);
+    if (g && this.battle.playCard(index, g.x, g.z)) this.deselect();
   }
 
   preview(index, clientX, clientY) {

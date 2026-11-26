@@ -68,7 +68,7 @@ export class DeckDrag {
     this.ghost.classList.add('deck-drag-ghost');
     this.ghost.setAttribute('aria-hidden', 'true');
     this.ghost.style.width = card.getBoundingClientRect().width + 'px';
-    document.body.append(this.ghost);
+    this.source.closest('.ui').append(this.ghost);
     this.source.classList.add('is-lifted');
     this.moves = this.builder.slotBtns.map((button, i) => {
       const next = replaceInDeck(this.builder.deck(), i, this.id);

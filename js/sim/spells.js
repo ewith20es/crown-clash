@@ -86,6 +86,12 @@ export function resolveSpell(w, p) {
       return true;
     }
     case 'stasis': {
+      if (p.kind === 'iceBlast') {
+        const target = w.getEntity(p.targetId);
+        if (!target?.alive) return true;
+        p.x = target.x;
+        p.z = target.z;
+      }
       areaDamage(w, p, s, s.damage || 0, 0);
       const ents = w.entities;
       for (let i = 0; i < ents.length; i++) {

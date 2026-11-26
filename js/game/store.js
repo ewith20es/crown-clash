@@ -2,6 +2,7 @@
 // hand-edited save can never break the game.
 import { DEFAULT_DECK, normalizeDeck } from '../data/cards.js';
 import { DIFFICULTIES } from '../ai/profiles.js';
+import { shareAfterSolo } from '../../multiplayer-config.js';
 
 const KEY = 'crown-clash-desktop.v1';
 const QUALITIES = ['low', 'medium', 'high'];
@@ -24,8 +25,9 @@ export function loadState() {
     towerTroop: 'tower-princess',
     trophies: 0,
     difficulty: 'normal',
-    settings: { quality: defaultQuality(), sfx: true, music: true },
+    settings: { quality: defaultQuality(), sfx: true, music: true, learning: true, soloTrainingServer: shareAfterSolo },
     firstRun: true,
+    soloTrainingPromptSeen: false,
     record: { wins: 0, losses: 0, draws: 0 },
   };
   try {
@@ -39,8 +41,11 @@ export function loadState() {
         if (QUALITIES.includes(raw.settings.quality)) state.settings.quality = raw.settings.quality;
         if (typeof raw.settings.sfx === 'boolean') state.settings.sfx = raw.settings.sfx;
         if (typeof raw.settings.music === 'boolean') state.settings.music = raw.settings.music;
+        if (typeof raw.settings.learning === 'boolean') state.settings.learning = raw.settings.learning;
+        if (typeof raw.settings.soloTrainingServer === 'boolean') state.settings.soloTrainingServer = raw.settings.soloTrainingServer;
       }
       if (raw.firstRun === false) state.firstRun = false;
+      state.soloTrainingPromptSeen = raw.soloTrainingPromptSeen === true;
       if (raw.record && typeof raw.record === 'object') {
         for (const k of ['wins', 'losses', 'draws']) {
           if (Number.isFinite(raw.record[k])) state.record[k] = Math.max(0, Math.round(raw.record[k]));
@@ -60,6 +65,7 @@ export function saveState(state) {
       difficulty: state.difficulty,
       settings: state.settings,
       firstRun: state.firstRun,
+      soloTrainingPromptSeen: state.soloTrainingPromptSeen,
       record: state.record,
     }));
   } catch { /* private mode / quota: playing without persistence is fine */ }
